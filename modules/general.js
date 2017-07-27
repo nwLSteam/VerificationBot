@@ -1,3 +1,4 @@
+const moment = require("moment");
 module.exports = (client) => {
 
   // Ready event
@@ -6,6 +7,23 @@ module.exports = (client) => {
     client.log(`Serving ${client.users.size} users across ${client.guilds.size} servers.`);
     client.log("------------------------------");
     client.log("");
+
+    if (client.config.logChannelID) {
+      client.createMessage(client.config.logChannelID, {
+        embed: {
+          author: {
+            name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
+            icon_url: client.user.dynamicAvatarURL("png", 512)
+          },
+          footer: {
+            text: "Bot Online",
+          },
+          timestamp: new Date(),
+          color: 8978176, // #88FF00, light green
+          type: "rich"
+        }
+      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+    }
   });
 
   // User joins server
