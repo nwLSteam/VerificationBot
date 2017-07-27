@@ -13,6 +13,7 @@ const client = new Eris.CommandClient(
   {
     disableEvents: {
       TYPING_START: true,
+    }
   },
 
   // Command options
@@ -24,10 +25,13 @@ const client = new Eris.CommandClient(
       caseInsensitive: true,
     }
   }
-});
+);
 
 // Attach the config to the client
 client.config = config;
+
+// Register commands
+require("./commands/owner")(client);
 
 // Logging methods
 client.log = (...msg) => console.log(chalk.green.bold(`[LOG] [${moment().format("MMM DD HH:mm:ss")}]`), ...msg);
@@ -55,14 +59,16 @@ client.on("ready", () => {
 client.on("guildMemberAdd", (guild, member) => {
   client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "New user joined, set up verification process.");
   client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "New user joined, set up verification process.");
-  client.createMessage(client.getDMChannel(member.id), client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`));
+  client.getDMChannel(member.id).then((channel) => {
+    client.createMessage(channel.id, client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`));
+  });
 
   if (client.config.logChannelID) {
     client.createMessage(client.config.logChannelID, {
       embed: {
         author: {
           name: `${member.username}#${member.discriminator} (${member.id})`,
-          icon_url: member.dynamicAvatarURL("png", 512)
+          icon_url: member.user.dynamicAvatarURL("png", 512)
         },
         description: moment().isBefore(moment(member.createdAt).add(1, "days")) ? ":warning: This user is less than one day old!" : "",
         footer: {
@@ -90,7 +96,9 @@ client.on("messageCreate", (msg) => {
       client.addGuildMemberRole(client.config.guildID, msg.author.id, client.config.memberRoleID, "Verification process complete, adding user to member role.");
       client.deleteChannelPermission(client.config.botOfflineChannelID, msg.author.id, "Verification process complete, cleaning up.");
       client.deleteChannelPermission(client.config.rulesChannelID, msg.author.id, "Verification process complete, cleaning up.");
-      client.createMessage(client.getDMChannel(msg.author.id), client.config.welcomeMsg.replace("<s>", msg.channel.guild.name).replace("<i>", `<#${client.config.introductionsChannelID}>`));
+      client.getDMChannel(msg.author.id).then((channel) => {
+        client.createMessage(channel.id, client.config.welcomeMsg.replace("<s>", client.guilds.find((guild) => guild.id === client.config.guildID).name).replace("<i>", `<#${client.config.introductionsChannelID}>`));
+      });
 
       if (client.config.logChannelID) {
         client.createMessage(client.config.logChannelID, {
@@ -123,7 +131,7 @@ client.on("guildMemberRemove", (guild, member) => {
 
     let avatarURL = "";
     try {
-      avatarURL = msg.member.dynamicAvatarURL("png", 512);
+      avatarURL = msg.member.user.dynamicAvatarURL("png", 512);
     }
     catch (e) {
       avatarURL = "";
@@ -160,21 +168,21 @@ function verificationPurge() {
     return;
   }
 
-  let kickMembers = guild.members.filter((member) => member.roles === []);
-  let memberCount = kickMembers.size;
+  let kickMembers = guild.members.filter((member) => member.roles.length === 0);
+  let memberCount = kickMembers.length ? kickMembers.length : "No";
 
   kickMembers.forEach((member) => {
     member.kick("Member failed verification test, kicking from the server.");
   });
 
   if (client.config.logChannelID) {
-    client.createMessage(config.logChannelID, {
+    client.createMessage(client.config.logChannelID, {
       embed: {
         author: {
-          name: client.user.username,
+          name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
           icon_url: client.user.dynamicAvatarURL("png", 512)
         },
-        description: `Verification purge has been performed. ${memberCount} users were kicked. The next purge is in 6 hours (${moment.add(6, "hours").format("HH:mm Z")})`,
+        description: `Verification purge has been performed. ${memberCount} users were kicked. The next purge is in 6 hours (${moment().add(6, "hours").format("HH:mm Z")})`,
         footer: {
           text: "Verification Purge",
         },
@@ -185,7 +193,7 @@ function verificationPurge() {
     });
   }
 
-  client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next purge is in 6 hours (${moment.add(6, "hours").format("HH:mm:ss Z")})`);
+  client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next purge is in 6 hours (${moment().add(6, "hours").format("HH:mm:ss Z")})`);
 }
 
 // Initialize the 6 hour timer
