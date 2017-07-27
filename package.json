@@ -9,7 +9,7 @@
   "dependencies": {
     "chalk": "^2.0.1",
     "common-tags": "^1.4.0",
-    "eris": "^0.7.0",
+    "eris": "abalabahaha/eris#dev",
     "moment": "^2.18.1"
   }
 }

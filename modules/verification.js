@@ -63,7 +63,7 @@ module.exports = (client) => {
   // Grabs every single user that does not have roles and saves the size of the collection
   // Loops through the collection and kicks each member
   // Logs it in the logging channel (if specified in the config)
-  function verificationPurge() {
+  function verificationPurge(callback) {
     client.log("Performing verification purge!");
     let guild = client.guilds.find((guild) => guild.id === client.config.guildID);
 
@@ -98,6 +98,7 @@ module.exports = (client) => {
     }
 
     client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
+    if (callback) callback();
   }
 
   // 6 hour timer helper
@@ -114,7 +115,7 @@ module.exports = (client) => {
   // Ensure that they do not already have permission overwrite set up for them
   // Set up their permission overwrites and send them a DM
   // Log it in the logging channel (if specified in the config)
-  function verificationSetup() {
+  function verificationSetup(callback) {
     client.log("Performing verification setup!");
 
     let guild = client.guilds.find((guild) => guild.id === client.config.guildID);
@@ -155,6 +156,7 @@ module.exports = (client) => {
     }
 
     client.log(`Verification setup is complete. ${memberCount} users need to be verified. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
+    if (callback) callback();
   }
 
   // On ready
@@ -171,41 +173,15 @@ module.exports = (client) => {
 
   // Commands
 
-  // Verification main command
-  var mainCmd = client.registerCommand("verification",
-
-  // Message reply for verification command
-  stripIndent`
-    **Verification Subcommands**
-
-      **purge**: performs the verification purge, kicking any users without a role
-      **setup**: performs the verification setup, giving any users without a role the specific channel permissions in order to be verified properly.
-  `,
-
-  // command options
-  {
-    aliases: [ "verify", "veri" ],
-    description: "Main verification command.",
-    fullDescription: "Main verification command, use the subcommands.",
-    usage: "<subcommand>",
-    requirements: {
-      roleIDs: [ client.config.modsRoleID ],
-    },
-  });
-
-  // purge subcommand
-  mainCmd.registerSubcommand("purge",
+  // verificationpurge command
+  client.registerCommand("verificationpurge",
 
   // message prompt for confirmation
-  stripIndent`
-    Are you sure? This will kick any user that does not have a role.
-
-    You have a minute to make a decision.
-  `,
+  "Are you sure? This will kick any user that does not have a role.\n\nYou have 30 seconds to make a decision.",
 
   // command options
   {
-    aliases: [ "kick" ],
+    aliases: [ "veripurge" ],
     description: "Kicks non-verified users.",
     fullDescription: "Kicks any users that have not followed the verification procedure. This is automatically run every 6 hours.",
     requirements: {
@@ -214,35 +190,41 @@ module.exports = (client) => {
     reactionButtons: [
       // yes button
       {
-        emoji: "yes:334952191351717899",
+        emoji: "🆗",
         type: "edit",
-        response: (msg, args) => {
-          verificationPurge();
-          return "Purging non-verified users...";
+        response: (msg) => {
+          msg.edit("Purging non-verified users...");
+          verificationPurge(() => {
+            msg.removeReactions();
+            msg.edit("Done!");
+          });
         }
       },
 
-      // no button
+      // no/cancel button
       {
-        emoji: "no:315210386255380481",
-        type: "edit",
-        response: "Canceling purge..."
+        emoji: "❌",
+        type: "cancel",
       }
-    ]
+    ],
+    reactionButtonTimeout: 30000
   });
 
-  // setup subcommand
-  mainCmd.registerSubcommand("setup",
+  // setup command
+  client.registerCommand("verificationsetup",
 
   // performs set up
-  (msg, args) => {
-    verificationSetup();
-    return "Performing setup..."
+  (msg) => {
+    msg.channel.createMessage("Performing setup...").then((m) => {
+      verificationSetup(() => {
+        m.edit("Done!");
+      });
+    });
   },
 
   // command options
   {
-    aliases: [ "init", "initialize" ],
+    aliases: [ "verisetup" ],
     description: "Performs verification setup.",
     fullDescription: "Gives anyone who does not have any roles the necessary permissions to see the verification rules channel.",
     requirements: {
