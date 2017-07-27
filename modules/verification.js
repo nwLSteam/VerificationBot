@@ -193,7 +193,7 @@ module.exports = (client) => {
   // Commands
 
   // Verification main command
-  client.registerCommand("verification",
+  var mainCmd = client.registerCommand("verification",
 
   // Message reply for verification command
   stripIndent`
@@ -212,10 +212,10 @@ module.exports = (client) => {
     requirements: {
       roleIDs: [ client.config.modsRoleID ],
     },
-  })
+  });
 
   // purge subcommand
-  .registerSubcommand("purge",
+  mainCmd.registerSubcommand("purge",
 
   // message prompt for confirmation
   stripIndent`
@@ -250,10 +250,10 @@ module.exports = (client) => {
         response: "Canceling purge..."
       }
     ]
-  })
+  });
 
   // setup subcommand
-  .registerSubcommand("setup",
+  mainCmd.registerSubcommand("setup",
 
   // performs set up
   (msg, args) => {
