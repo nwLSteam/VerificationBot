@@ -72,6 +72,9 @@ Config Options
 * memberRoleID: ID of the member role
 
 
+* modsRoleID: ID of the mods role
+
+
 * verificationPhrases: an list of all the acceptable phrases for verification
 
 
