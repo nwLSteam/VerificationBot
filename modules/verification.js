@@ -8,33 +8,12 @@ module.exports = (client) => {
   // Block the user from reading the bot offline channel
   // Allow the user to read the rules lite channel
   // Send them a direct message telling them to read the rules
-  // Log it in the logging channel (if specified in the config)
   client.on("guildMemberAdd", (guild, member) => {
     client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "New user joined, set up verification process.").catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
     client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "New user joined, set up verification process.").catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
     client.getDMChannel(member.id).then((channel) => {
       client.createMessage(channel.id, client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`)).catch((err) => client.error(`Error occured while sending message to user: ${err}`));
     }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`));
-
-    if (client.config.logChannelID) {
-      client.createMessage(client.config.logChannelID, {
-        embed: {
-          author: {
-            name: `${member.username}#${member.discriminator} (${member.id})`,
-            icon_url: member.user.dynamicAvatarURL("png", 512)
-          },
-          description: moment().isBefore(moment(member.createdAt).add(1, "days")) ? ":warning: This user is less than one day old!" : "",
-          footer: {
-            text: "User Joined",
-          },
-          timestamp: new Date(),
-          color: 52479, // #00CCFF, light blue
-          type: "rich"
-        }
-      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
-    }
-
-    client.log(`${member.username}#${member.discriminator} (${member.id}) joined the server.`);
   });
 
   // User messages the bot

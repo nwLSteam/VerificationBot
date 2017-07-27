@@ -8,6 +8,30 @@ module.exports = (client) => {
     client.log("");
   });
 
+  // User joins server
+  // Logs it in the logging channel
+  client.on("guildMemberAdd", (guild, member) => {
+    if (client.config.logChannelID) {
+      client.createMessage(client.config.logChannelID, {
+        embed: {
+          author: {
+            name: `${member.username}#${member.discriminator} (${member.id})`,
+            icon_url: member.user.dynamicAvatarURL("png", 512)
+          },
+          description: moment().isBefore(moment(member.createdAt).add(1, "days")) ? ":warning: This user is less than one day old!" : "",
+          footer: {
+            text: "User Joined",
+          },
+          timestamp: new Date(),
+          color: 52479, // #00CCFF, light blue
+          type: "rich"
+        }
+      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+    }
+
+    client.log(`${member.username}#${member.discriminator} (${member.id}) joined the server.`);
+  });
+
   // User leaves server
   // Check to make sure the avatar url can be obtained
   // Log it in the logging channel (if specified in the config)
