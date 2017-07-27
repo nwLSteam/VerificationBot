@@ -57,11 +57,11 @@ client.on("ready", () => {
 // Send them a direct message telling them to read the rules
 // Log it in the logging channel (if specified in the config)
 client.on("guildMemberAdd", (guild, member) => {
-  client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "New user joined, set up verification process.");
-  client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "New user joined, set up verification process.");
+  client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "New user joined, set up verification process.").catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
+  client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "New user joined, set up verification process.").catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
   client.getDMChannel(member.id).then((channel) => {
-    client.createMessage(channel.id, client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`));
-  });
+    client.createMessage(channel.id, client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`)).catch((err) => client.error(`Error occured while sending message to user: ${err}`));
+  }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`));
 
   if (client.config.logChannelID) {
     client.createMessage(client.config.logChannelID, {
@@ -78,7 +78,7 @@ client.on("guildMemberAdd", (guild, member) => {
         color: 52479, // #00CCFF, light blue
         type: "rich"
       }
-    });
+    }).catch((err) => client.error(`Error when creating log embed: ${err}`));
   }
 
   client.log(`${member.username}#${member.discriminator} (${member.id}) joined the server.`);
@@ -86,19 +86,23 @@ client.on("guildMemberAdd", (guild, member) => {
 
 // User messages the bot
 // If the verification phrase is entered correctly,
+// Ensure that the user hasn't already been verified
 // Add the user to the member role
 // Clean up the user specific channel permissions
 // Send them a direct message welcoming them to the server and inviting them to introduce themself.
 // Log it in the logging channel (if specified in the config)
 client.on("messageCreate", (msg) => {
   if (!msg.channel.guild) {
+    // If in the guild the member already has a role (roles list > 0), return
+    if (client.guilds.find((guild) => guild.id === client.config.guildID).members.find((member) => member.id === msg.author.id).roles.length != 0) return;
     if (client.config.verificationPhrases.includes(msg.content.toLowerCase())) {
-      client.addGuildMemberRole(client.config.guildID, msg.author.id, client.config.memberRoleID, "Verification process complete, adding user to member role.");
-      client.deleteChannelPermission(client.config.botOfflineChannelID, msg.author.id, "Verification process complete, cleaning up.");
-      client.deleteChannelPermission(client.config.rulesChannelID, msg.author.id, "Verification process complete, cleaning up.");
-      client.getDMChannel(msg.author.id).then((channel) => {
-        client.createMessage(channel.id, client.config.welcomeMsg.replace("<s>", client.guilds.find((guild) => guild.id === client.config.guildID).name).replace("<i>", `<#${client.config.introductionsChannelID}>`));
-      });
+      client.addGuildMemberRole(client.config.guildID, msg.author.id, client.config.memberRoleID, "Verification process complete, adding user to member role.").then(() => {
+        client.deleteChannelPermission(client.config.botOfflineChannelID, msg.author.id, "Verification process complete, cleaning up.").catch((err) => client.error(`Error occured while deleting channel permissions: ${err}`));
+        client.deleteChannelPermission(client.config.rulesChannelID, msg.author.id, "Verification process complete, cleaning up.").catch((err) => client.error(`Error occured while deleting channel permissions: ${err}`));
+        client.getDMChannel(msg.author.id).then((channel) => {
+          client.createMessage(channel.id, client.config.welcomeMsg.replace("<s>", client.guilds.find((guild) => guild.id === client.config.guildID).name).replace("<i>", `<#${client.config.introductionsChannelID}>`)).catch((err) => client.error(`Error occured while sending message to user: ${err}`));
+        }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`));
+      }).catch((err) => client.error(`Error occured when adding role to member: ${err}`));
 
       if (client.config.logChannelID) {
         client.createMessage(client.config.logChannelID, {
@@ -114,7 +118,7 @@ client.on("messageCreate", (msg) => {
             color: 8978176, // #88FF00, light green
             type: "rich"
           }
-        });
+        }).catch((err) => client.error(`Error when creating log embed: ${err}`));
       }
 
       client.log(`${msg.author.username}#${msg.author.discriminator} (${msg.author.id}) completed verification.`);
@@ -150,7 +154,7 @@ client.on("guildMemberRemove", (guild, member) => {
         color: 16755200, // #FFAA00, orange
         type: "rich"
       }
-    });
+    }).catch((err) => client.error(`Error when creating log embed: ${err}`));
   }
 
   client.log(`${member.username}#${member.discriminator} (${member.id}) left the server.`);
@@ -172,7 +176,7 @@ function verificationPurge() {
   let memberCount = kickMembers.length ? kickMembers.length : "No";
 
   kickMembers.forEach((member) => {
-    member.kick("Member failed verification test, kicking from the server.");
+    member.kick("Member failed verification test, kicking from the server.").catch((err) => client.error(`Error when kicking user: ${err}`));
   });
 
   if (client.config.logChannelID) {
@@ -190,7 +194,7 @@ function verificationPurge() {
         color: 16711680, // #FF0000, red
         type: "rich"
       }
-    });
+    }).catch((err) => client.error(`Error when creating log embed: ${err}`));
   }
 
   client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next purge is in 6 hours (${moment().add(6, "hours").format("HH:mm:ss Z")})`);
