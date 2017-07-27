@@ -129,7 +129,7 @@ module.exports = (client) => {
     let memberCount = verifyMembers.length ? verifyMembers.length : "No";
 
     verifyMembers.forEach((member) => {
-      if (client.getChannel(client.config.botOfflineChannelID).permissionOverwrites.find(member.id) && client.getChannel(client.config.rulesChannelID).permissionOverwrites.find(member.id)) return;
+      if (client.getChannel(client.config.botOfflineChannelID).permissionOverwrites.find((permissionOverwrite) => permissionOverwrite.id === member.id) && client.getChannel(client.config.rulesChannelID).permissionOverwrites.find((permissionOverwrite) => permissionOverwrite.id === member.id)) return;
       client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "Bot restarted, setting up verification process.").catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
       client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "Bot restarted, setting up verification process.").catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
       client.getDMChannel(member.id).then((channel) => {
