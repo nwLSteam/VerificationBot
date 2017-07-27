@@ -1,7 +1,7 @@
 module.exports = (client) => {
   // eval command
   client.registerCommand("eval",
-  // function of command
+  // function of eval
   (msg, args) => {
     try {
       let evaled = eval(msg.content.slice(msg.prefix.length + 5));
@@ -20,7 +20,7 @@ module.exports = (client) => {
       userIDs: [ "97198953430257664" ],
     }
   });
-}
+};
 
 function cleanText(text) {
   if (typeof text === "string") return text.replace(/`/g, "`\u200b").replace(/@/g, "@\u200b");
