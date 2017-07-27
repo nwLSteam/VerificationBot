@@ -1,0 +1,14 @@
+{
+  "discordToken": "",
+  "prefixes": ["@mention "],
+
+  "guildID": "",
+  "botOfflineChannelID": "",
+  "rulesChannelID": "",
+  "introductionsChannelID": "",
+  "logChannelID": "",
+  "memberRoleID": "",
+  "verificationPhrases": [""],
+  "joinMsg": "Welcome to the <s> Discord!\nTo get access to the chat and features of the server, please read the <r>!\nYou will be kicked in 6 hours if you do not properly read them and follow the instructions.",
+  "welcomeMsg": "Welcome to the <s> Discord!\nPlease introduce yourself in <i>.\nMessage or \\@mention any member of the moderation team for help or information!",
+}

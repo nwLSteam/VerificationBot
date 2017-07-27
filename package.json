@@ -1,0 +1,14 @@
+{
+  "name": "VerificationBot",
+  "version": "1.0.0",
+  "description": "Verification bot for Discord created with Eris",
+  "main": "index.js",
+  "repository": "https://github.com/Visate/VerificationBot",
+  "author": "Richard Gan <richard@designedbymajor.ca>",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^2.0.1",
+    "eris": "^0.7.0",
+    "moment": "^2.18.1"
+  }
+}
