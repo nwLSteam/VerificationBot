@@ -251,7 +251,7 @@ module.exports = (client) => {
 
     // Initialize the 6 hour timer
     setInterval(sixHourTimer, 6 * 60 * 60 * 1000) // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
-    client.nextPurge = moment().add(20, "seconds");
+    client.nextPurge = moment().add(6, "hours");
 
     // Run verification setup
     verificationSetup();
