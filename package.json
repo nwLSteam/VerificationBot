@@ -10,6 +10,7 @@
     "chalk": "^2.0.1",
     "common-tags": "^1.4.0",
     "eris": "abalabahaha/eris#dev",
+    "jsonfile": "^3.0.1",
     "moment": "^2.18.1"
   }
 }
