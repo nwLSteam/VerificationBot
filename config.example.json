@@ -1,0 +1,15 @@
+{
+  "discordToken": "",
+  "prefixes": ["@mention "],
+
+  "ownerID": "",
+  "guildID": "",
+  "botOfflineChannelID": "",
+  "rulesChannelID": "",
+  "introductionsChannelID": "",
+  "logChannelID": "",
+  "memberRoleID": "",
+  "modsRoleID": "",
+  "verificationPhrases": [""],
+  "welcomeMsg": "Welcome to the <s> Discord!\nPlease introduce yourself in <i>.\nMessage or \\@mention any member of the moderation team for help or information!"
+}

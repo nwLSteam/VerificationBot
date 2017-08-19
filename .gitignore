@@ -1,3 +1,9 @@
+# Config file
+config.json
+
+# Server Specific Lists
+roles.json
+
 # Logs
 logs
 *.log
