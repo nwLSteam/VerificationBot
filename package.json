@@ -1,6 +1,6 @@
 {
   "name": "VerificationBot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Verification bot for Discord created with Eris",
   "main": "index.js",
   "repository": "https://github.com/Visate/VerificationBot",
