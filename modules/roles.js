@@ -6,13 +6,32 @@ const rolesPath = "./lists/roles.json";
 
 module.exports = (client) => {
   
-  // Obtain main lists object
-  let roles = jsonfile.readFileSync(rolesPath);
-
   // Because this line of code is used way too damn much
   function saveFile() {
 
     jsonfile.writeFileSync(rolesPath, roles, { spaces: 2 });
+
+  }
+
+  // Define main lists object
+  let roles = {
+
+    region: [],
+    optin: []
+
+  };
+
+  // Obtain existing object, else create the file for it
+  try {
+
+    roles = jsonfile.readFileSync(rolesPath);
+
+  }
+
+  catch (e) {
+
+    client.warn("Couldn't find roles.json, making a new one...");
+    saveFile(); // it's basically the exact same line of code
 
   }
 
