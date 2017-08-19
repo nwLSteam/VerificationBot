@@ -30,7 +30,7 @@ module.exports = (client) => {
     usage: "<Javascript>",
     requirements: {
 
-      userIDs: [ "97198953430257664" ],
+      userIDs: [ client.config.ownerID ],
 
     }
 
