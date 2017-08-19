@@ -6,7 +6,7 @@ module.exports = (client) => {
   try {
 
     // read the modules text file in root dir
-    let modules = fs.readFileSync('modules.txt', 'utf8').split("\n");
+    let modules = fs.readFileSync('./lists/modules.txt', 'utf8').split("\n");
     let cleaned = [];
 
     // weed out any commands, blank spaces, and duplicates
