@@ -16,6 +16,13 @@ module.exports = (client) => {
 
     client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "New user joined, set up verification process.")
     .catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
+    
+    client.getDMChannel(member.id).then((channel) => { 
+      
+      client.createMessage(channel.id, client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`).replace("<t>", client.nextPurge.fromNow())) 
+      .catch((err) => client.error(`Error occured while sending message to user: ${err}`)); 
+      
+    }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`)); 
 
   });
 
