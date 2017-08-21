@@ -91,7 +91,7 @@ module.exports = (client) => {
 
       try {
 
-        avatarURL = msg.member.user.dynamicAvatarURL("png", 512);
+        avatarURL = member.user.dynamicAvatarURL("png", 512);
 
       }
 
