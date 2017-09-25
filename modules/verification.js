@@ -123,6 +123,11 @@ module.exports = (client) => {
 
     });
 
+    client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
+
+    // Stop it from logging to logging channel in Discord if nobody was kicked.
+    if (!kickMembers.length && !callback) return;
+
     if (client.config.logChannelID) {
 
       client.createMessage(client.config.logChannelID, {
@@ -153,8 +158,6 @@ module.exports = (client) => {
       }).catch((err) => client.error(`Error when creating log embed: ${err}`));
 
     }
-
-    client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
 
     if (callback) callback();
 
@@ -250,7 +253,7 @@ module.exports = (client) => {
   client.on("ready", () => {
 
     // Initialize the 6 hour timer
-    setInterval(sixHourTimer, 6 * 60 * 60 * 1000) // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
+    setInterval(sixHourTimer, 6 * 60 * 60 * 1000); // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
     client.nextPurge = moment().add(6, "hours");
 
     // Run verification setup
