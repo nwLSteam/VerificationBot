@@ -43,7 +43,7 @@ module.exports = (client) => {
 
     args = args.join(" ");
     
-    if (args.length == 0) return "Are you trying to give yourself absolutely nothing?";
+    if (args.length == 0) return;
 
     let query = msg.channel.guild.roles.filter(r => (roles.region.includes(r.id) || roles.optin.includes(r.id)) && (r.id === args || r.name.toLowerCase() == args.toLowerCase()));
     
@@ -66,7 +66,7 @@ module.exports = (client) => {
 
     else if (query.length === 1) query = query[0];
 
-    else return `${args} is not an opt-in role!`;
+    else return;
 
     if (roles.region.includes(query.id)) {
 
@@ -159,13 +159,13 @@ module.exports = (client) => {
 
     else if (query.length === 1) query = query[0];
 
-    else return `${args} is not an opt-in role!`;
+    else return;
 
     if (roles.region.includes(query.id) || roles.optin.includes(query.id)) {
 
       msg.member.removeRole(query.id, "Removing opt-in role from user.");
 
-      return `${msg.author.mention}, removed ${query.name} from you!`;
+      return `${msg.author.mention}, removed the ${query.name} tag from you!`;
 
     }
 

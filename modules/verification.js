@@ -1,5 +1,4 @@
 const moment = require("moment");
-const stripIndent = require("common-tags").stripIndents;
 
 module.exports = (client) => {
 
@@ -73,6 +72,7 @@ module.exports = (client) => {
                 icon_url: msg.author.dynamicAvatarURL("png", 512)
 
               },
+
               footer: {
 
                 text: "Verification Complete",
@@ -125,7 +125,7 @@ module.exports = (client) => {
 
     client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
 
-    // Stop it from logging to logging channel in Discord if nobody was kicked.
+    // Stop it from logging when it did not kick anyone.
     if (!kickMembers.length && !callback) return;
 
     if (client.config.logChannelID) {
@@ -206,7 +206,7 @@ module.exports = (client) => {
       .catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
       client.getDMChannel(member.id).then((channel) => {
 
-        client.createMessage(channel.id, "I am back online! Thank you for your patience.\n" + client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`))
+        client.createMessage(channel.id, "I am back online! Thank you for your patience.\n" + client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`).replace("<t>", client.nextPurge.fromNow()))
         .catch((err) => client.error(`Error occured while sending message to user: ${err}`));
 
       }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`));
@@ -251,7 +251,6 @@ module.exports = (client) => {
 
   // On ready
   client.on("ready", () => {
-
     // Initialize the 6 hour timer
     setInterval(sixHourTimer, 6 * 60 * 60 * 1000); // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
     client.nextPurge = moment().add(6, "hours");
