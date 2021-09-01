@@ -15,8 +15,9 @@ const client = new Eris.CommandClient(
 
     disableEvents: {
       TYPING_START: true,
-    }
+    },
 
+    intents: 32767
   },
 
   // Command options

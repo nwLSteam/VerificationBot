@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require( "path" );
 
 
 module.exports = (client) => {
@@ -11,7 +12,7 @@ module.exports = (client) => {
 
     // weed out any commands, blank spaces, and duplicates
     modules.forEach((module) => {
-
+      module = module.toLowerCase().replace(/[\n\r]/g, '');
       if (module.startsWith("#") || !module) return;
       if (!cleaned.includes(module.toLowerCase())) cleaned.push(module.toLowerCase());
 
@@ -24,7 +25,7 @@ module.exports = (client) => {
 
       try {
 
-        require(`../modules/${module}`)(client);
+        require(path.resolve(`./modules/${module}.js`))(client);
         client.log(`Loaded module ${module}!`);
       }
 

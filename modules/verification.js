@@ -37,7 +37,7 @@ module.exports = (client) => {
     if (!msg.channel.guild) {
 
       // If in the guild the member already has a role (roles list > 0), return
-      if (client.guilds.find((guild) => guild.id === client.config.guildID).members.find((member) => member.id === msg.author.id).roles.length != 0) return;
+      if (client.guilds.find((guild) => guild.id === client.config.guildID).members.find((member) => member.id === msg.author.id).roles.length !== 0) return;
 
       if (client.config.verificationPhrases.includes(msg.content.toLowerCase())) {
 
