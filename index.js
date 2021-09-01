@@ -17,6 +17,9 @@ const client = new Eris.CommandClient(
       TYPING_START: true,
     },
 
+    // all of them
+    // see: https://discord.com/developers/docs/topics/gateway#gateway-intents
+    // binary 111 1111 1111 1111 (all bits from 0 to 14 set) is 32767
     intents: 32767
   },
 
