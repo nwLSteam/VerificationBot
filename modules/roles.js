@@ -1,8 +1,9 @@
 const jsonfile = require("jsonfile");
 const commonTags = require("common-tags");
+const path = require( "path" );
 const stripIndent = commonTags.stripIndent;
 const stripIndents = commonTags.stripIndents;
-const rolesPath = "./lists/roles.json";
+const rolesPath = path.dirname(__dirname) + "/lists/roles.json";
 
 module.exports = (client) => {
   
@@ -43,9 +44,9 @@ module.exports = (client) => {
 
     args = args.join(" ");
     
-    if (args.length == 0) return;
+    if (args.length === 0) return;
 
-    let query = msg.channel.guild.roles.filter(r => (roles.region.includes(r.id) || roles.optin.includes(r.id)) && (r.id === args || r.name.toLowerCase() == args.toLowerCase()));
+    let query = msg.channel.guild.roles.filter(r => (roles.region.includes(r.id) || roles.optin.includes(r.id)) && (r.id === args || r.name.toLowerCase() === args.toLowerCase()));
     
     if (query.length > 1) {
 
@@ -138,7 +139,7 @@ module.exports = (client) => {
   (msg, args) => {
 
     args = args.join(" ");
-    let query = msg.channel.guild.roles.filter(r => (roles.region.includes(r.id) || roles.optin.includes(r.id)) && (r.id === args || r.name.toLowerCase() == args.toLowerCase())); 
+    let query = msg.channel.guild.roles.filter(r => (roles.region.includes(r.id) || roles.optin.includes(r.id)) && (r.id === args || r.name.toLowerCase() === args.toLowerCase()));
 
     if (query.length > 1) {
 
@@ -220,7 +221,7 @@ module.exports = (client) => {
   (msg, args) => {
 
     args = args.join(" ");
-    let query = msg.channel.guild.roles.filter(r => r.id === args || r.name.toLowerCase() == args.toLowerCase()); 
+    let query = msg.channel.guild.roles.filter(r => r.id === args || r.name.toLowerCase() === args.toLowerCase());
 
     if (query.length > 1) {
 
