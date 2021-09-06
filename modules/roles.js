@@ -7,117 +7,102 @@ const rolesPath = path.dirname( __dirname ) + '/lists/roles.json';
 
 module.exports = ( client ) => {
 
-	// Because this line of code is used way too damn much
-	function saveFile () {
-
-		jsonfile.writeFileSync( rolesPath, roles, { spaces: 2 } );
-
-	}
-
 	// Define main lists object
 	let roles = {
-
 		region: [],
 		optin: []
-
 	};
+
+	// Because this line of code is used way too damn much
+	function saveRolesToFile () {
+		jsonfile.writeFileSync( rolesPath, roles, { spaces: 2 } );
+	}
 
 	// Obtain existing object, else create the file for it
 	try {
-
 		roles = jsonfile.readFileSync( rolesPath );
-
 	} catch ( e ) {
-
 		client.warn( 'Couldn\'t find roles.json, making a new one...' );
-		saveFile(); // it's basically the exact same line of code
-
+		saveRolesToFile(); // it's basically the exact same line of code
 	}
 
-	// Selfrole command, allows the user to give a role to their user.
-	let roleCmd = client.registerCommand( 'selfrole',
+	function command_selfrole ( msg, args ) {
+		args = args.join( ' ' );
 
-	                                      // function body
-	                                      ( msg, args ) => {
+		if ( args.length === 0 ) {
+			return;
+		}
 
-		                                      args = args.join( ' ' );
+		let query = msg.channel.guild.roles.filter( r => ( roles.region.includes( r.id )
+		                                                   || roles.optin.includes( r.id ) )
+		                                                 && ( r.id === args
+		                                                      || r.name.toLowerCase()
+		                                                      === args.toLowerCase() ) );
 
-		                                      if ( args.length === 0 ) {
-			                                      return;
-		                                      }
+		if ( query.length > 1 ) {
 
-		                                      let query = msg.channel.guild.roles.filter( r => ( roles.region.includes( r.id )
-		                                                                                         || roles.optin.includes( r.id ) )
-		                                                                                       && ( r.id === args
-		                                                                                            || r.name.toLowerCase()
-		                                                                                            === args.toLowerCase() ) );
+			let checkCaseQuery = query.filter( r => r.name === args );
 
-		                                      if ( query.length > 1 ) {
+			if ( checkCaseQuery.length === 1 ) {
+				query = checkCaseQuery[0];
+			} else {
 
-			                                      let checkCaseQuery = query.filter( r => r.name === args );
-
-			                                      if ( checkCaseQuery.length === 1 ) {
-				                                      query = checkCaseQuery[0];
-			                                      } else {
-
-				                                      return stripIndents`
+				return stripIndents`
         There are multiple opt-in roles with this name! Use the ID instead to self assign them.
         
         ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
 
-			                                      }
+			}
 
-		                                      } else if ( query.length === 1 ) {
-			                                      query = query[0];
-		                                      } else {
-			                                      return;
-		                                      }
+		} else if ( query.length === 1 ) {
+			query = query[0];
+		} else {
+			return;
+		}
 
-		                                      if ( roles.region.includes( query.id ) ) {
+		if ( roles.region.includes( query.id ) ) {
 
-			                                      let existing = msg.member.roles.filter( r => roles.region.includes( r ) );
+			let existing = msg.member.roles.filter( r => roles.region.includes( r ) );
 
-			                                      existing.forEach( ( roleid ) => {
+			existing.forEach( ( roleid ) => {
 
-				                                      if ( roleid
-				                                           !== query.id ) {
-					                                      msg.member.removeRole( roleid, 'Removing existing region role to add new one.' );
-				                                      }
+				if ( roleid
+				     !== query.id ) {
+					msg.member.removeRole( roleid, 'Removing existing region role to add new one.' );
+				}
 
-			                                      } );
+			} );
 
-			                                      msg.member.addRole( query.id, 'Adding region role to user.' );
+			msg.member.addRole( query.id, 'Adding region role to user.' );
 
-			                                      return `${msg.author.mention}, you are now a ${query.name}!`;
+			return `${msg.author.mention}, you are now a ${query.name}!`;
 
-		                                      } else if ( roles.optin.includes( query.id ) ) {
+		} else if ( roles.optin.includes( query.id ) ) {
 
-			                                      msg.member.addRole( query.id, 'Adding optin role to user.' );
+			msg.member.addRole( query.id, 'Adding optin role to user.' );
 
-			                                      return `${msg.author.mention}, gave you the ${query.name} tag!`;
+			return `${msg.author.mention}, gave you the ${query.name} tag!`;
 
-		                                      }
+		}
+	}
 
-	                                      },
+	// Selfrole command, allows the user to give a role to their user.
+	let selfrole = client.registerCommand(
+		'selfrole',
+		command_selfrole,
 
-	                                      // command options
-	                                      {
+		// command options
+		{
+			aliases: [ 'iam' ],
+			guildOnly: true,
+			description: 'Give or remove roles from yourself.',
+			fullDescription: 'Give yourself one of the defined roles on the server. List roles with subcommand list. Remove roles with subcommand remove or not. You may only have one region role, but an unlimited amount of other roles.',
+			usage: '<role name>'
+		}
+	);
 
-		                                      aliases: [ 'iam' ],
-		                                      guildOnly: true,
-		                                      description: 'Give or remove roles from yourself.',
-		                                      fullDescription: 'Give yourself one of the defined roles on the server. List roles with subcommand list. Remove roles with subcommand remove or not. You may only have one region role, but an unlimited amount of other roles.',
-		                                      usage: '<role name>'
-
-	                                      } );
-
-	// List subcommand, lists all possible roles to be self-assigned
-	roleCmd.registerSubcommand( 'list',
-
-	                            // function body
-	                            ( msg ) => {
-
-		                            return stripIndents`
+	function command_selfrole_list ( msg, args ) {
+		return stripIndents`
     These are the roles you may currently assign yourself.
     
     **Region Roles**
@@ -127,456 +112,426 @@ module.exports = ( client ) => {
     **Opt-in Roles**
     ${roles.optin.length ? roles.optin.map( roleid => msg.channel.guild.roles.get( roleid ).name ).join( ', ' )
 		                 : 'There are no opt-in roles!'}`;
+	}
 
-	                            },
+	// List subcommand, lists all possible roles to be self-assigned
+	selfrole.registerSubcommand(
+		'list',
+		command_selfrole_list,
 
-	                            // command options
-	                            {
+		// command options
+		{
+			guildOnly: true,
+			description: 'List all available self-assignable roles.',
+			fullDescription: 'Lists all available region and other roles that are self-assignable.'
+		}
+	);
 
-		                            guildOnly: true,
-		                            description: 'List all available self-assignable roles.',
-		                            fullDescription: 'Lists all available region and other roles that are self-assignable.'
+	function command_selfrole_remove ( msg, args ) {
+		args = args.join( ' ' );
+		let query = msg.channel.guild.roles.filter( r => ( roles.region.includes( r.id )
+		                                                   || roles.optin.includes( r.id ) )
+		                                                 && ( r.id === args
+		                                                      || r.name.toLowerCase()
+		                                                      === args.toLowerCase() ) );
 
-	                            } );
+		if ( query.length > 1 ) {
 
-	// Remove subcommand, allows the user to remove their own self-assignable tags.
-	roleCmd.registerSubcommand( 'remove',
+			let checkCaseQuery = query.filter( r => r.name === args );
 
-	                            // function body
-	                            ( msg, args ) => {
+			if ( checkCaseQuery.length === 1 ) {
+				query = checkCaseQuery[0];
+			} else {
 
-		                            args = args.join( ' ' );
-		                            let query = msg.channel.guild.roles.filter( r => ( roles.region.includes( r.id )
-		                                                                               || roles.optin.includes( r.id ) )
-		                                                                             && ( r.id === args
-		                                                                                  || r.name.toLowerCase()
-		                                                                                  === args.toLowerCase() ) );
-
-		                            if ( query.length > 1 ) {
-
-			                            let checkCaseQuery = query.filter( r => r.name === args );
-
-			                            if ( checkCaseQuery.length === 1 ) {
-				                            query = checkCaseQuery[0];
-			                            } else {
-
-				                            return stripIndents`
+				return stripIndents`
         There are multiple opt-in roles with this name! Use the ID instead to remove them.
         
         ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
 
-			                            }
+			}
 
-		                            } else if ( query.length === 1 ) {
-			                            query = query[0];
-		                            } else {
-			                            return;
-		                            }
+		} else if ( query.length === 1 ) {
+			query = query[0];
+		} else {
+			return;
+		}
 
-		                            if ( roles.region.includes( query.id ) || roles.optin.includes( query.id ) ) {
+		if ( roles.region.includes( query.id ) || roles.optin.includes( query.id ) ) {
 
-			                            msg.member.removeRole( query.id, 'Removing opt-in role from user.' );
+			msg.member.removeRole( query.id, 'Removing opt-in role from user.' );
 
-			                            return `${msg.author.mention}, removed the ${query.name} tag from you!`;
+			return `${msg.author.mention}, removed the ${query.name} tag from you!`;
 
-		                            }
+		}
+	}
 
-	                            },
+	// Remove subcommand, allows the user to remove their own self-assignable tags.
+	selfrole.registerSubcommand(
+		'remove',
+		command_selfrole_remove,
 
-	                            // command options
-	                            {
-
-		                            aliases: [ 'not' ],
-		                            guildOnly: true,
-		                            description: 'Allows the user to remove their own opt-in roles.',
-		                            fullDescription: 'Allows the user to remove their own opt-in roles.',
-		                            usage: '<role name>'
-
-	                            } );
+		// command options
+		{
+			aliases: [ 'not' ],
+			guildOnly: true,
+			description: 'Allows the user to remove their own opt-in roles.',
+			fullDescription: 'Allows the user to remove their own opt-in roles.',
+			usage: '<role name>'
+		}
+	);
 
 	// Mod commands
 	// These commands allow the mods to define which roles are opt ins or not.
 
 	// Optin role manager
-	let optin = client.registerCommand( 'optin',
-
-	                                    // content
-	                                    stripIndent`
+	let optin = client.registerCommand(
+		'optin',
+		// content
+		stripIndent`
   Valid subcommands:
   
     **add** - adds a new opt-in role
     **remove** - removes an opt-in role
     **list** - lists current opt-in roles`,
 
-	                                    // command options
-	                                    {
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-		                                    requirements: {
+			guildOnly: true,
+			description: 'Allows for the management of opt-in roles. Subcommands add and remove.',
+			fullDescription: 'Allows for the management of opt-in roles.',
+			usage: '<subcommand>'
+		}
+	);
 
-			                                    userIDs: [ client.config.ownerID ],
-			                                    roleIDs: [ client.config.modsRoleID ]
+	function command_optin_add ( msg, args ) {
+		args = args.join( ' ' );
+		let query = msg.channel.guild.roles.filter( r => r.id === args || r.name.toLowerCase()
+		                                                 === args.toLowerCase() );
 
-		                                    },
+		if ( query.length > 1 ) {
 
-		                                    guildOnly: true,
-		                                    description: 'Allows for the management of opt-in roles. Subcommands add and remove.',
-		                                    fullDescription: 'Allows for the management of opt-in roles.',
-		                                    usage: '<subcommand>'
+			let checkCaseQuery = query.filter( r => r.name === args );
 
-	                                    } );
+			if ( checkCaseQuery.length === 1 ) {
+				query = checkCaseQuery[0];
+			} else {
 
-	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
-	optin.registerSubcommand( 'add',
-
-	                          //function body
-	                          ( msg, args ) => {
-
-		                          args = args.join( ' ' );
-		                          let query = msg.channel.guild.roles.filter( r => r.id === args || r.name.toLowerCase()
-		                                                                           === args.toLowerCase() );
-
-		                          if ( query.length > 1 ) {
-
-			                          let checkCaseQuery = query.filter( r => r.name === args );
-
-			                          if ( checkCaseQuery.length === 1 ) {
-				                          query = checkCaseQuery[0];
-			                          } else {
-
-				                          return stripIndents`
+				return stripIndents`
         You have multiple roles with the same name! Use the ID instead to add this to the list.
       
         ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
 
-			                          }
+			}
 
-		                          } else if ( query.length === 1 ) {
-			                          query = query[0];
-		                          } else {
+		} else if ( query.length === 1 ) {
+			query = query[0];
+		} else {
 
-			                          msg.channel.guild.createRole( { name: args }, 'Creating new opt-in role.' ).then( ( role ) => {
+			msg.channel.guild.createRole( { name: args }, 'Creating new opt-in role.' ).then( ( role ) => {
 
-				                          roles.optin.push( role.id );
-				                          saveFile();
+				roles.optin.push( role.id );
+				saveRolesToFile();
 
-			                          } );
+			} );
 
-			                          return `Created a new opt-in role ${args}!`;
+			return `Created a new opt-in role ${args}!`;
 
-		                          }
+		}
 
-		                          if ( roles.optin.includes( query.id )
-		                               || roles.region.includes( query.id ) ) {
-			                          return `${query.name} is already an opt-in role!`;
-		                          }
+		if ( roles.optin.includes( query.id )
+		     || roles.region.includes( query.id ) ) {
+			return `${query.name} is already an opt-in role!`;
+		}
 
-		                          roles.optin.push( query.id );
-		                          saveFile();
+		roles.optin.push( query.id );
+		saveRolesToFile();
 
-		                          return `Added ${query.name} to the list of opt-in roles!`;
+		return `Added ${query.name} to the list of opt-in roles!`;
 
-	                          },
+	}
 
-	                          // command options
-	                          {
+	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
+	optin.registerSubcommand(
+		'add',
+		command_optin_add,
 
-		                          requirements: {
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-			                          userIDs: [ client.config.ownerID ],
-			                          roleIDs: [ client.config.modsRoleID ]
+			guildOnly: true,
+			description: 'Adds an opt-in role.',
+			fullDescription: 'Adds an opt-in role. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
+			usage: '<role name or id>'
+		}
+	);
 
-		                          },
+	function command_optin_remove ( msg, args ) {
+		args = args.join( ' ' );
+		let query = msg.channel.guild.roles.filter( r => roles.optin.includes( r.id )
+		                                                 && ( r.id === args
+		                                                      || r.name.toLowerCase()
+		                                                      === args.toLowerCase() ) );
 
-		                          guildOnly: true,
-		                          description: 'Adds an opt-in role.',
-		                          fullDescription: 'Adds an opt-in role. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
-		                          usage: '<role name or id>'
+		if ( query.length > 1 ) {
 
-	                          } );
+			let checkCaseQuery = query.filter( r => r.name === args );
 
-	optin.registerSubcommand( 'remove',
+			if ( checkCaseQuery.length === 1 ) {
+				checkCaseQuery = checkCaseQuery[0];
+			} else {
 
-	                          // function body
-	                          ( msg, args ) => {
-
-		                          args = args.join( ' ' );
-		                          let query = msg.channel.guild.roles.filter( r => roles.optin.includes( r.id )
-		                                                                           && ( r.id === args
-		                                                                                || r.name.toLowerCase()
-		                                                                                === args.toLowerCase() ) );
-
-		                          if ( query.length > 1 ) {
-
-			                          let checkCaseQuery = query.filter( r => r.name === args );
-
-			                          if ( checkCaseQuery.length === 1 ) {
-				                          checkCaseQuery = checkCaseQuery[0];
-			                          } else {
-
-				                          return stripIndents`
+				return stripIndents`
         You have multiple roles with the same name! Use the ID instead to add this to the list.
       
         ${query.map( r => `${r.name} -- ${r.id}` ).join( '\n' )}`;
 
-			                          }
+			}
 
-		                          } else if ( query.length === 1 ) {
-			                          query = query[0];
-		                          } else {
-			                          return `${args} isn't an opt-in role!`;
-		                          }
+		} else if ( query.length === 1 ) {
+			query = query[0];
+		} else {
+			return `${args} isn't an opt-in role!`;
+		}
 
-		                          roles.optin.splice( roles.optin.indexOf( query.id ), 1 );
-		                          saveFile();
+		roles.optin.splice( roles.optin.indexOf( query.id ), 1 );
+		saveRolesToFile();
 
-		                          return `Removed ${query.name} as an opt-in role.`;
+		return `Removed ${query.name} as an opt-in role.`;
 
-	                          },
+	}
 
-	                          {
+	optin.registerSubcommand(
+		'remove',
+		command_optin_remove,
 
-		                          requirements: {
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-			                          userIDs: [ client.config.ownerID ],
-			                          roleIDs: [ client.config.modsRoleID ]
+			guildOnly: true,
+			description: 'Removes an opt-in role.',
+			fullDescription: 'Removes an opt-in role.',
+			usage: '<role name or id>'
+		}
+	);
 
-		                          },
-
-		                          guildOnly: true,
-		                          description: 'Removes an opt-in role.',
-		                          fullDescription: 'Removes an opt-in role.',
-		                          usage: '<role name or id>'
-
-	                          } );
-
-	optin.registerSubcommand( 'list',
-
-	                          // function body
-	                          ( msg ) => {
-
-		                          return roles.optin.length ? stripIndents`
+	function command_optin_list ( msg, args ) {
+		return roles.optin.length ? stripIndents`
     These are the current opt-in roles.
     
     ${roles.optin.map( roleid => `**${msg.channel.guild.roles.get( roleid ).name}** - ${roleid}` ).join( '\n' )}`
-		                                                    : 'There are no opt-in roles!';
+		                          : 'There are no opt-in roles!';
+	}
 
-	                          },
+	optin.registerSubcommand(
+		'list',
+		command_optin_list,
 
-	                          // command options
-	                          {
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-		                          requirements: {
-
-			                          userIDs: [ client.config.ownerID ],
-			                          roleIDs: [ client.config.modsRoleID ]
-
-		                          },
-
-		                          guildOnly: true,
-		                          description: 'Lists all opt-in roles.',
-		                          fullDescription: 'Lists all opt-in roles.'
-
-	                          } );
+			guildOnly: true,
+			description: 'Lists all opt-in roles.',
+			fullDescription: 'Lists all opt-in roles.'
+		}
+	);
 
 	// Region role manager
-	let region = client.registerCommand( 'region',
+	let region = client.registerCommand(
+		'region',
 
-	                                     //function body
-	                                     stripIndent`
+		//function body
+		stripIndent`
   Valid subcommands:
   
     **add** - adds a new region role
     **remove** - removes a region role
     **list** - lists current region roles`,
 
-	                                     // command options
-	                                     {
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-		                                     requirements: {
+			guildOnly: true,
+			description: 'Allows for the management of region roles. Subcommands add and remove.',
+			fullDescription: 'Allows for the management of region roles.',
+			usage: '<subcommand>'
+		}
+	);
 
-			                                     userIDs: [ client.config.ownerID ],
-			                                     roleIDs: [ client.config.modsRoleID ]
+	function command_region_add ( msg, args ) {
+		args = args.join( ' ' );
+		let query = msg.channel.guild.roles.filter( r => r.id === args
+		                                                 || r.name.toLowerCase()
+		                                                 === args.toLowerCase() );
 
-		                                     },
+		if ( query.length > 1 ) {
 
-		                                     guildOnly: true,
-		                                     description: 'Allows for the management of region roles. Subcommands add and remove.',
-		                                     fullDescription: 'Allows for the management of region roles.',
-		                                     usage: '<subcommand>'
+			let checkCaseQuery = query.filter( r => r.name === args );
 
-	                                     } );
+			if ( checkCaseQuery.length === 1 ) {
+				query = checkCaseQuery[0];
+			} else {
+
+				return stripIndents`
+        You have multiple roles with the same name! Use the ID instead to add this to the list.
+      
+        ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
+
+			}
+
+		} else if ( query.length === 1 ) {
+			query = query[0];
+		} else {
+
+			msg.channel.guild.createRole( { name: args }, 'Creating new region role.' ).then( ( role ) => {
+
+				roles.region.push( role.id );
+				saveRolesToFile();
+
+			} );
+
+			return `Created a new region role ${args}!`;
+
+		}
+
+		if ( roles.optin.includes( query.id )
+		     || roles.region.includes( query.id ) ) {
+			return `${query.name} is already an opt-in role!`;
+		}
+
+		roles.region.push( query.id );
+		saveRolesToFile();
+
+		return `Added ${query.name} to the list of region roles!`;
+	}
 
 	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
-	region.registerSubcommand( 'add',
+	region.registerSubcommand(
+		'add',
+		command_region_add,
 
-	                           //function body
-	                           ( msg, args ) => {
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-		                           args = args.join( ' ' );
-		                           let query = msg.channel.guild.roles.filter( r => r.id === args
-		                                                                            || r.name.toLowerCase()
-		                                                                            === args.toLowerCase() );
+			guildOnly: true,
+			description: 'Adds a region role.',
+			fullDescription: 'Adds a region role. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
+			usage: '<role name or id>'
+		}
+	);
 
-		                           if ( query.length > 1 ) {
+	function command_region_remove ( msg, args ) {
+		args = args.join( ' ' );
+		let query = msg.channel.guild.roles.filter( r => roles.region.includes( r.id )
+		                                                 && ( r.id === args
+		                                                      || r.name.toLowerCase()
+		                                                      === args.toLowerCase() ) );
 
-			                           let checkCaseQuery = query.filter( r => r.name === args );
+		if ( query.length > 1 ) {
 
-			                           if ( checkCaseQuery.length === 1 ) {
-				                           query = checkCaseQuery[0];
-			                           } else {
+			let checkCaseQuery = query.filter( r => r.name === args );
 
-				                           return stripIndents`
+			if ( checkCaseQuery.length === 1 ) {
+				checkCaseQuery = checkCaseQuery[0];
+			} else {
+
+				return stripIndents`
         You have multiple roles with the same name! Use the ID instead to add this to the list.
       
         ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
 
-			                           }
+			}
 
-		                           } else if ( query.length === 1 ) {
-			                           query = query[0];
-		                           } else {
+		} else if ( query.length === 1 ) {
+			query = query[0];
+		} else {
+			return `${args} isn't a region role!`;
+		}
 
-			                           msg.channel.guild.createRole( { name: args }, 'Creating new region role.' ).then( ( role ) => {
+		roles.region.splice( roles.region.indexOf( query.id ), 1 );
+		saveRolesToFile();
 
-				                           roles.region.push( role.id );
-				                           saveFile();
+		return `Removed ${query.name} as a region role.`;
+	}
 
-			                           } );
+	region.registerSubcommand(
+		'remove',
+		command_region_remove,
 
-			                           return `Created a new region role ${args}!`;
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-		                           }
+			guildOnly: true,
+			description: 'Removes a region role.',
+			fullDescription: 'Removes a region role.',
+			usage: '<role name or id>'
+		}
+	);
 
-		                           if ( roles.optin.includes( query.id )
-		                                || roles.region.includes( query.id ) ) {
-			                           return `${query.name} is already an opt-in role!`;
-		                           }
-
-		                           roles.region.push( query.id );
-		                           saveFile();
-
-		                           return `Added ${query.name} to the list of region roles!`;
-
-	                           },
-
-	                           // command options
-	                           {
-
-		                           requirements: {
-
-			                           userIDs: [ client.config.ownerID ],
-			                           roleIDs: [ client.config.modsRoleID ]
-
-		                           },
-
-		                           guildOnly: true,
-		                           description: 'Adds a region role.',
-		                           fullDescription: 'Adds a region role. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
-		                           usage: '<role name or id>'
-
-	                           } );
-
-	region.registerSubcommand( 'remove',
-
-	                           // function body
-	                           ( msg, args ) => {
-
-		                           args = args.join( ' ' );
-		                           let query = msg.channel.guild.roles.filter( r => roles.region.includes( r.id )
-		                                                                            && ( r.id === args
-		                                                                                 || r.name.toLowerCase()
-		                                                                                 === args.toLowerCase() ) );
-
-		                           if ( query.length > 1 ) {
-
-			                           let checkCaseQuery = query.filter( r => r.name === args );
-
-			                           if ( checkCaseQuery.length === 1 ) {
-				                           checkCaseQuery = checkCaseQuery[0];
-			                           } else {
-
-				                           return stripIndents`
-        You have multiple roles with the same name! Use the ID instead to add this to the list.
-      
-        ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
-
-			                           }
-
-		                           } else if ( query.length === 1 ) {
-			                           query = query[0];
-		                           } else {
-			                           return `${args} isn't a region role!`;
-		                           }
-
-		                           roles.region.splice( roles.region.indexOf( query.id ), 1 );
-		                           saveFile();
-
-		                           return `Removed ${query.name} as a region role.`;
-
-	                           },
-
-	                           {
-
-		                           requirements: {
-
-			                           userIDs: [ client.config.ownerID ],
-			                           roleIDs: [ client.config.modsRoleID ]
-
-		                           },
-
-		                           guildOnly: true,
-		                           description: 'Removes a region role.',
-		                           fullDescription: 'Removes a region role.',
-		                           usage: '<role name or id>'
-
-	                           } );
-
-	region.registerSubcommand( 'list',
-
-	                           // function body
-	                           ( msg ) => {
-
-		                           return roles.region.length ? stripIndents`
+	function command_region_list ( msg ) {
+		return roles.region.length ? stripIndents`
     These are the current region roles.
     
     ${roles.region.map( roleid => `**${msg.channel.guild.roles.get( roleid ).name}** - ${roleid}` ).join( '\n' )}`
-		                                                      : 'There are no region roles!';
+		                           : 'There are no region roles!';
 
-	                           },
+	}
 
-	                           // command options
-	                           {
+	region.registerSubcommand(
+		'list',
+		command_region_list,
 
-		                           requirements: {
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
 
-			                           userIDs: [ client.config.ownerID ],
-			                           roleIDs: [ client.config.modsRoleID ]
+			guildOnly: true,
+			description: 'Lists all region roles.',
+			fullDescription: 'Lists all region roles.'
+		}
+	);
 
-		                           },
-
-		                           guildOnly: true,
-		                           description: 'Lists all region roles.',
-		                           fullDescription: 'Lists all region roles.'
-
-	                           } );
-
-	// catch the deletion of optin roles
-	client.on( 'guildRoleDelete', ( guild, role ) => {
-
+	function event_guildRoleDelete ( guild, role ) {
 		if ( roles.optin.includes( role.id ) ) {
-
 			roles.optin.splice( roles.optin.indexOf( role.id ), 1 );
-			saveFile();
-
+			saveRolesToFile();
 		}
 
 		if ( roles.region.includes( role.id ) ) {
-
 			roles.region.splice( roles.region.indexOf( role.id ), 1 );
-			saveFile();
-
+			saveRolesToFile();
 		}
+	}
 
-	} );
-
+	// catch the deletion of optin roles
+	client.on( 'guildRoleDelete', event_guildRoleDelete );
 };
