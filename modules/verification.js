@@ -1,355 +1,373 @@
-const moment = require("moment");
+const moment = require( 'moment' );
 
-module.exports = (client) => {
+module.exports = ( client ) => {
 
-  // Verification process
+	// Verification process
 
-  // User join
-  // Block the user from reading the bot offline channel
-  // Allow the user to read the rules lite channel
-  // Send them a direct message telling them to read the rules
-  client.on("guildMemberAdd", (guild, member) => {
+	// User join
+	// Block the user from reading the bot offline channel
+	// Allow the user to read the rules lite channel
+	// Send them a direct message telling them to read the rules
+	client.on( 'guildMemberAdd', ( guild, member ) => {
 
-    client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "New user joined, set up verification process.")
-    .catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
+		client.editChannelPermission( client.config.botOfflineChannelID, member.id, 0, 1024, 'member', 'New user joined, set up verification process.' )
+		      .catch( ( err ) => client.error( `Error occured while changing channel permissions: ${err}` ) );
 
-    client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "New user joined, set up verification process.")
-    .catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
-    
-    client.getDMChannel(member.id).then((channel) => { 
-      
-      client.createMessage(channel.id, client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`).replace("<t>", client.nextPurge.fromNow())) 
-      .catch((err) => client.error(`Error occured while sending message to user: ${err}`)); 
-      
-    }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`)); 
+		client.editChannelPermission( client.config.rulesChannelID, member.id, 1024, 0, 'member', 'New user joined, set up verification process.' )
+		      .catch( ( err ) => client.error( `Error occured while changing channel permissions: ${err}` ) );
 
-  });
+		client.getDMChannel( member.id ).then( ( channel ) => {
 
-  // User messages the bot
-  // If the verification phrase is entered correctly,
-  // Ensure that the user hasn't already been verified
-  // Add the user to the member role
-  // Clean up the user specific channel permissions
-  // Send them a direct message welcoming them to the server and inviting them to introduce themself.
-  // Log it in the logging channel (if specified in the config)
-  client.on("messageCreate", (msg) => {
+			client.createMessage( channel.id, client.config.joinMsg.replace( '<s>', guild.name ).replace( '<r>', `<#${client.config.rulesChannelID}>` ).replace( '<t>', client.nextPurge.fromNow() ) )
+			      .catch( ( err ) => client.error( `Error occured while sending message to user: ${err}` ) );
 
-    if (!msg.channel.guild) {
+		} ).catch( ( err ) => client.error( `Error occured when obtaining DM channel: ${err}` ) );
 
-      // If in the guild the member already has a role (roles list > 0), return
-      if (client.guilds.find((guild) => guild.id === client.config.guildID).members.find((member) => member.id === msg.author.id).roles.length !== 0) return;
+	} );
 
-      if (client.config.verificationPhrases.includes(msg.content.toLowerCase())) {
+	// User messages the bot
+	// If the verification phrase is entered correctly,
+	// Ensure that the user hasn't already been verified
+	// Add the user to the member role
+	// Clean up the user specific channel permissions
+	// Send them a direct message welcoming them to the server and inviting them to introduce themself.
+	// Log it in the logging channel (if specified in the config)
+	client.on( 'messageCreate', ( msg ) => {
 
-        client.addGuildMemberRole(client.config.guildID, msg.author.id, client.config.memberRoleID, "Verification process complete, adding user to member role.")
+		if ( !msg.channel.guild ) {
 
-        .then(() => {
+			// If in the guild the member already has a role (roles list > 0), return
+			if ( client.guilds.find( ( guild ) => guild.id
+			                                      === client.config.guildID ).members.find( ( member ) => member.id
+			                                                                                              === msg.author.id ).roles.length
+			     !== 0 ) {
+				return;
+			}
 
-          client.deleteChannelPermission(client.config.botOfflineChannelID, msg.author.id, "Verification process complete, cleaning up.")
-          .catch((err) => client.error(`Error occured while deleting channel permissions: ${err}`));
+			if ( client.config.verificationPhrases.includes( msg.content.toLowerCase() ) ) {
 
-          client.deleteChannelPermission(client.config.rulesChannelID, msg.author.id, "Verification process complete, cleaning up.")
-          .catch((err) => client.error(`Error occured while deleting channel permissions: ${err}`));
+				client.addGuildMemberRole( client.config.guildID, msg.author.id, client.config.memberRoleID, 'Verification process complete, adding user to member role.' )
 
-          client.getDMChannel(msg.author.id).then((channel) => {
+				      .then( () => {
 
-            client.createMessage(channel.id, client.config.welcomeMsg.replace("<s>", client.guilds.find((guild) => guild.id === client.config.guildID).name).replace("<i>", `<#${client.config.introductionsChannelID}>`))
-            .catch((err) => client.error(`Error occured while sending message to user: ${err}`));
+					      client.deleteChannelPermission( client.config.botOfflineChannelID, msg.author.id, 'Verification process complete, cleaning up.' )
+					            .catch( ( err ) => client.error( `Error occured while deleting channel permissions: ${err}` ) );
 
-          }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`));
+					      client.deleteChannelPermission( client.config.rulesChannelID, msg.author.id, 'Verification process complete, cleaning up.' )
+					            .catch( ( err ) => client.error( `Error occured while deleting channel permissions: ${err}` ) );
 
-        }).catch((err) => client.error(`Error occured when adding role to member: ${err}`));
+					      client.getDMChannel( msg.author.id ).then( ( channel ) => {
 
-        if (client.config.logChannelID) {
+						      client.createMessage( channel.id, client.config.welcomeMsg.replace( '<s>', client.guilds.find( ( guild ) => guild.id
+						                                                                                                                  === client.config.guildID ).name ).replace( '<i>', `<#${client.config.introductionsChannelID}>` ) )
+						            .catch( ( err ) => client.error( `Error occured while sending message to user: ${err}` ) );
 
-          client.createMessage(client.config.logChannelID, {
+					      } ).catch( ( err ) => client.error( `Error occured when obtaining DM channel: ${err}` ) );
 
-            embed: {
+				      } ).catch( ( err ) => client.error( `Error occured when adding role to member: ${err}` ) );
 
-              author: {
+				if ( client.config.logChannelID ) {
 
-                name: `${msg.author.username}#${msg.author.discriminator} (${msg.author.id})`,
-                icon_url: msg.author.dynamicAvatarURL("png", 512)
+					client.createMessage( client.config.logChannelID, {
 
-              },
+						embed: {
 
-              footer: {
+							author: {
 
-                text: "Verification Complete",
+								name: `${msg.author.username}#${msg.author.discriminator} (${msg.author.id})`,
+								icon_url: msg.author.dynamicAvatarURL( 'png', 512 )
 
-              },
+							},
 
-              timestamp: new Date(),
-              color: 8978176, // #88FF00, light green
-              type: "rich"
+							footer: {
 
-            }
+								text: 'Verification Complete'
 
-          }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+							},
 
-        }
+							timestamp: new Date(),
+							color: 8978176, // #88FF00, light green
+							type: 'rich'
 
-        client.log(`${msg.author.username}#${msg.author.discriminator} (${msg.author.id}) completed verification.`);
+						}
 
-      }
+					} ).catch( ( err ) => client.error( `Error when creating log embed: ${err}` ) );
 
-    }
+				}
 
-  });
+				client.log( `${msg.author.username}#${msg.author.discriminator} (${msg.author.id}) completed verification.` );
 
-  // Verification purge function
-  // Ensure that the guild exists
-  // Grabs every single user that does not have roles and saves the size of the collection
-  // Loops through the collection and kicks each member
-  // Logs it in the logging channel (if specified in the config)
-  function verificationPurge(callback) {
+			}
 
-    client.log("Performing verification purge!");
-    let guild = client.guilds.find((guild) => guild.id === client.config.guildID);
+		}
 
-    if (!guild) {
+	} );
 
-      client.error("Cannot find the guild that is specified in the config!");
-      return;
+	// Verification purge function
+	// Ensure that the guild exists
+	// Grabs every single user that does not have roles and saves the size of the collection
+	// Loops through the collection and kicks each member
+	// Logs it in the logging channel (if specified in the config)
+	function verificationPurge ( callback ) {
 
-    }
+		client.log( 'Performing verification purge!' );
+		let guild = client.guilds.find( ( guild ) => guild.id === client.config.guildID );
 
-    let kickMembers = guild.members.filter((member) => member.roles.length === 0);
-    let memberCount = kickMembers.length ? kickMembers.length : "No";
+		if ( !guild ) {
 
-    kickMembers.forEach((member) => {
+			client.error( 'Cannot find the guild that is specified in the config!' );
+			return;
 
-      member.kick("Member failed verification test, kicking from the server.").catch((err) => client.error(`Error when kicking user: ${err}`));
+		}
 
-    });
+		let kickMembers = guild.members.filter( ( member ) => member.roles.length === 0 );
+		let memberCount = kickMembers.length ? kickMembers.length : 'No';
 
-    client.log(`Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
+		kickMembers.forEach( ( member ) => {
 
-    // Stop it from logging when it did not kick anyone.
-    if (!kickMembers.length && !callback) return;
+			member.kick( 'Member failed verification test, kicking from the server.' ).catch( ( err ) => client.error( `Error when kicking user: ${err}` ) );
 
-    if (client.config.logChannelID) {
+		} );
 
-      client.createMessage(client.config.logChannelID, {
+		client.log( `Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format( 'HH:mm:ss Z' )})` );
 
-        embed: {
+		// Stop it from logging when it did not kick anyone.
+		if ( !kickMembers.length && !callback ) {
+			return;
+		}
 
-          author: {
+		if ( client.config.logChannelID ) {
 
-            name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
-            icon_url: client.user.dynamicAvatarURL("png", 512)
+			client.createMessage( client.config.logChannelID, {
 
-          },
+				embed: {
 
-          description: `Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`,
+					author: {
 
-          footer: {
+						name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
+						icon_url: client.user.dynamicAvatarURL( 'png', 512 )
 
-            text: "Verification Purge",
+					},
 
-          },
+					description: `Verification purge has been performed. ${memberCount} users were kicked. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format( 'HH:mm:ss Z' )})`,
 
-          timestamp: new Date(),
-          color: 16711680, // #FF0000, red
-          type: "rich"
+					footer: {
 
-        }
+						text: 'Verification Purge'
 
-      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+					},
 
-    }
+					timestamp: new Date(),
+					color: 16711680, // #FF0000, red
+					type: 'rich'
 
-    if (callback) callback();
+				}
 
-  }
+			} ).catch( ( err ) => client.error( `Error when creating log embed: ${err}` ) );
 
-  // 6 hour timer helper
-  // Purely visual and not actually vital to any part of the program.
-  // Makes sure that the next purge is always updated before running verification purge
-  function sixHourTimer() {
+		}
 
-    client.nextPurge = moment().add(6, "hours");
-    verificationPurge();
+		if ( callback ) {
+			callback();
+		}
 
-  }
+	}
 
-  // Verification setup function
-  // Ensure the guild exists
-  // Get all members who have no roles
-  // Ensure that they do not already have permission overwrite set up for them
-  // Set up their permission overwrites and send them a DM
-  // Log it in the logging channel (if specified in the config)
-  function verificationSetup(callback) {
+	// 6 hour timer helper
+	// Purely visual and not actually vital to any part of the program.
+	// Makes sure that the next purge is always updated before running verification purge
+	function sixHourTimer () {
 
-    client.log("Performing verification setup!");
+		client.nextPurge = moment().add( 6, 'hours' );
+		verificationPurge();
 
-    let guild = client.guilds.find((guild) => guild.id === client.config.guildID);
+	}
 
-    if (!guild) {
+	// Verification setup function
+	// Ensure the guild exists
+	// Get all members who have no roles
+	// Ensure that they do not already have permission overwrite set up for them
+	// Set up their permission overwrites and send them a DM
+	// Log it in the logging channel (if specified in the config)
+	function verificationSetup ( callback ) {
 
-      client.error("Cannot find the guild that is specified in the config!");
-      return;
+		client.log( 'Performing verification setup!' );
 
-    }
+		let guild = client.guilds.find( ( guild ) => guild.id === client.config.guildID );
 
-    let verifyMembers = guild.members.filter((member) => member.roles.length === 0);
-    let memberCount = verifyMembers.length ? verifyMembers.length : "No";
+		if ( !guild ) {
 
-    verifyMembers.forEach((member) => {
+			client.error( 'Cannot find the guild that is specified in the config!' );
+			return;
 
-      if (client.getChannel(client.config.botOfflineChannelID).permissionOverwrites.find((permissionOverwrite) => permissionOverwrite.id === member.id) && client.getChannel(client.config.rulesChannelID).permissionOverwrites.find((permissionOverwrite) => permissionOverwrite.id === member.id)) return;
+		}
 
-      client.editChannelPermission(client.config.botOfflineChannelID, member.id, 0, 1024, "member", "Bot restarted, setting up verification process.")
-      .catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
+		let verifyMembers = guild.members.filter( ( member ) => member.roles.length === 0 );
+		let memberCount = verifyMembers.length ? verifyMembers.length : 'No';
 
-      client.editChannelPermission(client.config.rulesChannelID, member.id, 1024, 0, "member", "Bot restarted, setting up verification process.")
-      .catch((err) => client.error(`Error occured while changing channel permissions: ${err}`));
-      client.getDMChannel(member.id).then((channel) => {
+		verifyMembers.forEach( ( member ) => {
 
-        client.createMessage(channel.id, "I am back online! Thank you for your patience.\n" + client.config.joinMsg.replace("<s>", guild.name).replace("<r>", `<#${client.config.rulesChannelID}>`).replace("<t>", client.nextPurge.fromNow()))
-        .catch((err) => client.error(`Error occured while sending message to user: ${err}`));
+			if ( client.getChannel( client.config.botOfflineChannelID ).permissionOverwrites.find( ( permissionOverwrite ) => permissionOverwrite.id
+			                                                                                                                  === member.id )
+			     && client.getChannel( client.config.rulesChannelID ).permissionOverwrites.find( ( permissionOverwrite ) => permissionOverwrite.id
+			                                                                                                                === member.id ) ) {
+				return;
+			}
 
-      }).catch((err) => client.error(`Error occured when obtaining DM channel: ${err}`));
+			client.editChannelPermission( client.config.botOfflineChannelID, member.id, 0, 1024, 'member', 'Bot restarted, setting up verification process.' )
+			      .catch( ( err ) => client.error( `Error occured while changing channel permissions: ${err}` ) );
 
-    });
+			client.editChannelPermission( client.config.rulesChannelID, member.id, 1024, 0, 'member', 'Bot restarted, setting up verification process.' )
+			      .catch( ( err ) => client.error( `Error occured while changing channel permissions: ${err}` ) );
+			client.getDMChannel( member.id ).then( ( channel ) => {
 
-    if (client.config.logChannelID) {
+				client.createMessage( channel.id, 'I am back online! Thank you for your patience.\n'
+				                                  + client.config.joinMsg.replace( '<s>', guild.name ).replace( '<r>', `<#${client.config.rulesChannelID}>` ).replace( '<t>', client.nextPurge.fromNow() ) )
+				      .catch( ( err ) => client.error( `Error occured while sending message to user: ${err}` ) );
 
-      client.createMessage(client.config.logChannelID, {
+			} ).catch( ( err ) => client.error( `Error occured when obtaining DM channel: ${err}` ) );
 
-        embed: {
+		} );
 
-          author: {
+		if ( client.config.logChannelID ) {
 
-            name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
-            icon_url: client.user.dynamicAvatarURL("png", 512)
+			client.createMessage( client.config.logChannelID, {
 
-          },
+				embed: {
 
-          description: `Verification setup is complete. ${memberCount} users need to be verified. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`,
+					author: {
 
-          footer: {
+						name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
+						icon_url: client.user.dynamicAvatarURL( 'png', 512 )
 
-            text: "Verification Setup",
+					},
 
-          },
+					description: `Verification setup is complete. ${memberCount} users need to be verified. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format( 'HH:mm:ss Z' )})`,
 
-          timestamp: new Date(),
-          color: 52479, // #00CCFF, light blue
-          type: "rich"
+					footer: {
 
-        }
+						text: 'Verification Setup'
 
-      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+					},
 
-    }
+					timestamp: new Date(),
+					color: 52479, // #00CCFF, light blue
+					type: 'rich'
 
-    client.log(`Verification setup is complete. ${memberCount} users need to be verified. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format("HH:mm:ss Z")})`);
-    if (callback) callback();
+				}
 
-  }
+			} ).catch( ( err ) => client.error( `Error when creating log embed: ${err}` ) );
 
-  // On ready
-  client.on("ready", () => {
-    // Initialize the 6 hour timer
-    setInterval(sixHourTimer, 6 * 60 * 60 * 1000); // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
-    client.nextPurge = moment().add(6, "hours");
+		}
 
-    // Run verification setup
-    verificationSetup();
+		client.log( `Verification setup is complete. ${memberCount} users need to be verified. The next automated purge is ${client.nextPurge.fromNow()} (${client.nextPurge.format( 'HH:mm:ss Z' )})` );
+		if ( callback ) {
+			callback();
+		}
 
-  });
+	}
 
-  // Commands
+	// On ready
+	client.on( 'ready', () => {
+		// Initialize the 6 hour timer
+		setInterval( sixHourTimer, 6 * 60 * 60 * 1000 ); // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
+		client.nextPurge = moment().add( 6, 'hours' );
 
-  // verificationpurge command
-  client.registerCommand("verificationpurge",
+		// Run verification setup
+		verificationSetup();
 
-  // message prompt for confirmation
-  "Are you sure? This will kick any user that does not have a role.\n\nYou have 30 seconds to make a decision.",
+	} );
 
-  // command options
-  {
+	// Commands
 
-    aliases: [ "veripurge" ],
-    description: "Kicks non-verified users.",
-    fullDescription: "Kicks any users that have not followed the verification procedure. This is automatically run every 6 hours.",
+	// verificationpurge command
+	client.registerCommand( 'verificationpurge',
 
-    requirements: {
+	                        // message prompt for confirmation
+	                        'Are you sure? This will kick any user that does not have a role.\n\nYou have 30 seconds to make a decision.',
 
-      userIDs: [ client.config.ownerID ],
-      roleIDs: [ client.config.modsRoleID ],
+	                        // command options
+	                        {
 
-    },
+		                        aliases: [ 'veripurge' ],
+		                        description: 'Kicks non-verified users.',
+		                        fullDescription: 'Kicks any users that have not followed the verification procedure. This is automatically run every 6 hours.',
 
-    reactionButtons: [
+		                        requirements: {
 
-      // yes button
-      {
+			                        userIDs: [ client.config.ownerID ],
+			                        roleIDs: [ client.config.modsRoleID ]
 
-        emoji: "🆗",
-        type: "edit",
-        response: (msg) => {
+		                        },
 
-          msg.edit("Purging non-verified users...");
+		                        reactionButtons: [
 
-          verificationPurge(() => {
+			                        // yes button
+			                        {
 
-            msg.removeReactions();
-            msg.edit("Done!");
+				                        emoji: '🆗',
+				                        type: 'edit',
+				                        response: ( msg ) => {
 
-          });
+					                        msg.edit( 'Purging non-verified users...' );
 
-        }
+					                        verificationPurge( () => {
 
-      },
+						                        msg.removeReactions();
+						                        msg.edit( 'Done!' );
 
-      // no/cancel button
-      {
+					                        } );
 
-        emoji: "❌",
-        type: "cancel",
+				                        }
 
-      }
+			                        },
 
-    ],
+			                        // no/cancel button
+			                        {
 
-    reactionButtonTimeout: 30000
+				                        emoji: '❌',
+				                        type: 'cancel'
 
-  });
+			                        }
 
-  // setup command
-  client.registerCommand("verificationsetup",
+		                        ],
 
-  // performs set up
-  (msg) => {
+		                        reactionButtonTimeout: 30000
 
-    msg.channel.createMessage("Performing setup...").then((m) => {
+	                        } );
 
-      verificationSetup(() => {
+	// setup command
+	client.registerCommand( 'verificationsetup',
 
-        m.edit("Done!");
+	                        // performs set up
+	                        ( msg ) => {
 
-      });
+		                        msg.channel.createMessage( 'Performing setup...' ).then( ( m ) => {
 
-    });
+			                        verificationSetup( () => {
 
-  },
+				                        m.edit( 'Done!' );
 
-  // command options
-  {
+			                        } );
 
-    aliases: [ "verisetup" ],
-    description: "Performs verification setup.",
-    fullDescription: "Gives anyone who does not have any roles the necessary permissions to see the verification rules channel.",
+		                        } );
 
-    requirements: {
+	                        },
 
-      userIDs: [ client.config.ownerID ],
-      roleIDs: [ client.config.modsRoleID ],
+	                        // command options
+	                        {
 
-    }
+		                        aliases: [ 'verisetup' ],
+		                        description: 'Performs verification setup.',
+		                        fullDescription: 'Gives anyone who does not have any roles the necessary permissions to see the verification rules channel.',
 
-  });
+		                        requirements: {
+
+			                        userIDs: [ client.config.ownerID ],
+			                        roleIDs: [ client.config.modsRoleID ]
+
+		                        }
+
+	                        } );
 
 };

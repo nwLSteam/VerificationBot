@@ -1,135 +1,134 @@
-const moment = require("moment");
+const moment = require( 'moment' );
 
-module.exports = (client) => {
+module.exports = ( client ) => {
 
-  // Ready event
-  client.on("ready", () => {
+	// Ready event
+	client.on( 'ready', () => {
 
-    client.log(`Ready! Logged in to Discord as ${client.user.username}#${client.user.discriminator} (${client.user.id}).`);
-    client.log(`Serving ${client.users.size} users across ${client.guilds.size} servers.`);
-    client.log("------------------------------");
-    client.log("");
+		client.log( `Ready! Logged in to Discord as ${client.user.username}#${client.user.discriminator} (${client.user.id}).` );
+		client.log( `Serving ${client.users.size} users across ${client.guilds.size} servers.` );
+		client.log( '------------------------------' );
+		client.log( '' );
 
-    if (client.config.logChannelID) {
+		if ( client.config.logChannelID ) {
 
-      client.createMessage(client.config.logChannelID, {
+			client.createMessage( client.config.logChannelID, {
 
-        embed: {
+				embed: {
 
-          author: {
+					author: {
 
-            name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
-            icon_url: client.user.dynamicAvatarURL("png", 512)
+						name: `${client.user.username}#${client.user.discriminator} (${client.user.id})`,
+						icon_url: client.user.dynamicAvatarURL( 'png', 512 )
 
-          },
+					},
 
-          footer: {
+					footer: {
 
-            text: "Bot Online",
+						text: 'Bot Online'
 
-          },
+					},
 
-          timestamp: new Date(),
-          color: 8978176, // #88FF00, light green
-          type: "rich"
+					timestamp: new Date(),
+					color: 8978176, // #88FF00, light green
+					type: 'rich'
 
-        }
+				}
 
-      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+			} ).catch( ( err ) => client.error( `Error when creating log embed: ${err}` ) );
 
-    }
+		}
 
-  });
+	} );
 
-  // User joins server
-  // Logs it in the logging channel
-  client.on("guildMemberAdd", (guild, member) => {
+	// User joins server
+	// Logs it in the logging channel
+	client.on( 'guildMemberAdd', ( guild, member ) => {
 
-    if (client.config.logChannelID) {
+		if ( client.config.logChannelID ) {
 
-      client.createMessage(client.config.logChannelID, {
+			client.createMessage( client.config.logChannelID, {
 
-        embed: {
+				embed: {
 
-          author: {
+					author: {
 
-            name: `${member.username}#${member.discriminator} (${member.id})`,
-            icon_url: member.user.dynamicAvatarURL("png", 512)
+						name: `${member.username}#${member.discriminator} (${member.id})`,
+						icon_url: member.user.dynamicAvatarURL( 'png', 512 )
 
-          },
+					},
 
-          description: moment().isBefore(moment(member.createdAt).add(1, "days")) ? ":warning: This user is less than one day old!" : "",
+					description: moment().isBefore( moment( member.createdAt ).add( 1, 'days' ) )
+					             ? ':warning: This user is less than one day old!' : '',
 
-          footer: {
+					footer: {
 
-            text: "User Joined",
+						text: 'User Joined'
 
-          },
+					},
 
-          timestamp: new Date(),
-          color: 52479, // #00CCFF, light blue
-          type: "rich"
+					timestamp: new Date(),
+					color: 52479, // #00CCFF, light blue
+					type: 'rich'
 
-        }
+				}
 
-      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+			} ).catch( ( err ) => client.error( `Error when creating log embed: ${err}` ) );
 
-    }
+		}
 
-    client.log(`${member.username}#${member.discriminator} (${member.id}) joined the server.`);
+		client.log( `${member.username}#${member.discriminator} (${member.id}) joined the server.` );
 
-  });
+	} );
 
-  // User leaves server
-  // Check to make sure the avatar url can be obtained
-  // Log it in the logging channel (if specified in the config)
-  client.on("guildMemberRemove", (guild, member) => {
+	// User leaves server
+	// Check to make sure the avatar url can be obtained
+	// Log it in the logging channel (if specified in the config)
+	client.on( 'guildMemberRemove', ( guild, member ) => {
 
-    if (client.config.logChannelID) {
+		if ( client.config.logChannelID ) {
 
-      let avatarURL = "";
+			let avatarURL = '';
 
-      try {
+			try {
 
-        avatarURL = member.user.dynamicAvatarURL("png", 512);
+				avatarURL = member.user.dynamicAvatarURL( 'png', 512 );
 
-      }
+			} catch ( e ) {
 
-      catch (e) {
+				avatarURL = '';
 
-        avatarURL = "";
+			}
 
-      }
+			client.createMessage( client.config.logChannelID, {
 
-      client.createMessage(client.config.logChannelID, {
+				embed: {
 
-        embed: {
+					author: {
 
-          author: {
+						name: `${member.username}#${member.discriminator} (${member.id})`,
+						icon_url: avatarURL
 
-            name: `${member.username}#${member.discriminator} (${member.id})`,
-            icon_url: avatarURL
+					},
 
-          },
+					footer: {
 
-          footer: {
+						text: 'User Left'
 
-            text: "User Left",
+					},
 
-          },
+					timestamp: new Date(),
+					color: 16755200, // #FFAA00, orange
+					type: 'rich'
 
-          timestamp: new Date(),
-          color: 16755200, // #FFAA00, orange
-          type: "rich"
+				}
 
-        }
+			} ).catch( ( err ) => client.error( `Error when creating log embed: ${err}` ) );
 
-      }).catch((err) => client.error(`Error when creating log embed: ${err}`));
+		}
 
-    }
+		client.log( `${member.username}#${member.discriminator} (${member.id}) left the server.` );
 
-    client.log(`${member.username}#${member.discriminator} (${member.id}) left the server.`);
-
-  });
+	} );
 
 };

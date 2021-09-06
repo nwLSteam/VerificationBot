@@ -1,46 +1,49 @@
-module.exports = (client) => {
+module.exports = ( client ) => {
 
-  // eval command
-  client.registerCommand("eval",
+	// eval command
+	client.registerCommand( 'eval',
 
-  // function of eval
-  (msg, args) => {
+	                        // function of eval
+	                        ( msg, args ) => {
 
-    try {
+		                        try {
 
-      let evaled = eval(msg.content.slice(msg.prefix.length + 5));
-      if (typeof evaled !== "string") evaled = require("util").inspect(evaled);
-      return `\`\`\`x1\n${cleanText(evaled)}\n\`\`\``;
+			                        let evaled = eval( msg.content.slice( msg.prefix.length + 5 ) );
+			                        if ( typeof evaled !== 'string' ) {
+				                        evaled = require( 'util' ).inspect( evaled );
+			                        }
+			                        return `\`\`\`x1\n${cleanText( evaled )}\n\`\`\``;
 
-    }
+		                        } catch ( err ) {
 
-    catch (err) {
+			                        return `Error: ${cleanText( err )}`;
 
-      return `Error: ${cleanText(err)}`
+		                        }
 
-    }
+	                        },
 
-  },
+	                        // command options
+	                        {
 
-  // command options
-  {
+		                        description: 'Runs arbitrary JavaScript. Oh, and *you* can\'t run it.',
+		                        fullDescription: 'Runs arbitrary JavaScript. Oh, and *you* can\'t run it.',
+		                        usage: '<Javascript>',
+		                        requirements: {
 
-    description: "Runs arbitrary JavaScript. Oh, and *you* can't run it.",
-    fullDescription: "Runs arbitrary JavaScript. Oh, and *you* can't run it.",
-    usage: "<Javascript>",
-    requirements: {
+			                        userIDs: [ client.config.ownerID ]
 
-      userIDs: [ client.config.ownerID ],
+		                        }
 
-    }
-
-  });
+	                        } );
 
 };
 
-function cleanText(text) {
+function cleanText ( text ) {
 
-  if (typeof text === "string") return text.replace(/`/g, "`\u200b").replace(/@/g, "@\u200b");
-  else return text;
-  
+	if ( typeof text === 'string' ) {
+		return text.replace( /`/g, '`\u200b' ).replace( /@/g, '@\u200b' );
+	} else {
+		return text;
+	}
+
 }
