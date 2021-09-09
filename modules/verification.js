@@ -13,7 +13,7 @@ module.exports = ( client ) => {
 	 * @param guild
 	 * @param member
 	 */
-	function event_guildMemberAdd ( guild, member ) {
+	function verification_event_guildMemberAdd ( guild, member ) {
 		client.editChannelPermission(
 			client.config.botOfflineChannelID,
 			member.id,
@@ -46,7 +46,7 @@ module.exports = ( client ) => {
 		      ).catch( ( err ) => client.error( `Error occured when obtaining DM channel: ${err}` ) );
 	}
 
-	client.on( 'guildMemberAdd', event_guildMemberAdd );
+	client.on( 'guildMemberAdd', verification_event_guildMemberAdd );
 
 	/**
 	 * Fires when user messages the bot

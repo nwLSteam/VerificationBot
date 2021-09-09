@@ -520,7 +520,7 @@ module.exports = ( client ) => {
 		}
 	);
 
-	function event_guildRoleDelete ( guild, role ) {
+	function roles_event_guildRoleDelete ( guild, role ) {
 		if ( roles.optin.includes( role.id ) ) {
 			roles.optin.splice( roles.optin.indexOf( role.id ), 1 );
 			saveRolesToFile();
@@ -533,5 +533,5 @@ module.exports = ( client ) => {
 	}
 
 	// catch the deletion of optin roles
-	client.on( 'guildRoleDelete', event_guildRoleDelete );
+	client.on( 'guildRoleDelete', roles_event_guildRoleDelete );
 };
