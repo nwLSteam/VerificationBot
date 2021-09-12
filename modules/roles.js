@@ -4,27 +4,336 @@ const path = require( 'path' );
 const stripIndent = commonTags.stripIndent;
 const stripIndents = commonTags.stripIndents;
 const rolesPath = path.dirname( __dirname ) + '/lists/roles.json';
+const groupsPath = path.dirname( __dirname ) + '/lists/groups.json';
+
+const defaultGroup = 'Misc';
 
 module.exports = ( client ) => {
 
-	// Define main lists object
-	let roles = {
-		region: [],
-		optin: []
-	};
-
 	// Because this line of code is used way too damn much
 	function saveRolesToFile () {
-		jsonfile.writeFileSync( rolesPath, roles, { spaces: 2 } );
+		jsonfile.writeFileSync( rolesPath, roles, { spaces: 4 } );
+	}
+
+	function saveGroupsToFile () {
+		jsonfile.writeFileSync( groupsPath, groups, { spaces: 4 } );
 	}
 
 	// Obtain existing object, else create the file for it
+	let roles;
 	try {
 		roles = jsonfile.readFileSync( rolesPath );
 	} catch ( e ) {
+		roles = {
+			region: [],
+			optin: []
+		};
+
 		client.warn( 'Couldn\'t find roles.json, making a new one...' );
 		saveRolesToFile(); // it's basically the exact same line of code
 	}
+
+	let groups;
+	try {
+		groups = jsonfile.readFileSync( groupsPath );
+		if ( !groups.hasOwnProperty( `${defaultGroup}` ) ) {
+			groups[`${defaultGroup}`] = [];
+			saveGroupsToFile();
+		}
+	} catch ( e ) {
+		groups = {};
+		groups[`${defaultGroup}`] = [];
+
+		client.warn( 'Couldn\'t find groups.json, making a new one...' );
+		saveGroupsToFile(); // it's basically the exact same line of code
+	}
+
+	// groups role manager
+	let groupsCommand = client.registerCommand(
+		'groups',
+		// content
+		stripIndent`
+  Valid subcommands:
+    **list** - lists current groups
+    **add** - adds a new group
+    **remove** - removes a group
+    **yeet** - moves all roles from one group to another
+    **yoink** - moves some roles to a group
+    `,
+
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Allows for the management of opt-in roles. Subcommands add and remove.',
+			fullDescription: 'Allows for the management of opt-in roles.',
+			usage: '<subcommand>'
+		}
+	);
+
+	function command_groups_add ( msg, args ) {
+		let total = args.length;
+		let i = 0;
+		for ( const toAdd of args ) {
+			if ( groups.hasOwnProperty( `${toAdd}` ) ) {
+				client.createMessage( msg.channel.id, `Group ${toAdd} already exists!` );
+				continue;
+			}
+
+			++i;
+			groups[`${toAdd}`] = [];
+			client.createMessage( msg.channel.id, `Added group ${toAdd}!` );
+		}
+
+		if ( i === 0 ) {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Added no groups.**` );
+		} else if ( i === total ) {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Added ${i} groups.**.` );
+		} else {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Added ${i} of ${total} groups.**` );
+		}
+		saveGroupsToFile();
+	}
+
+	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
+	groupsCommand.registerSubcommand(
+		'add',
+		command_groups_add,
+
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Adds one or multiple groups.',
+			fullDescription: 'Adds one or multiple groups.',
+			usage: '<groupname ...>'
+		}
+	);
+
+	function command_groups_remove ( msg, args ) {
+		let total = args.length;
+		let i = 0;
+		let moved = 0;
+		for ( const toRemove of args ) {
+
+			if ( toRemove === defaultGroup ) {
+				client.createMessage( msg.channel.id, `Cannot remove default group "${defaultGroup}"!` );
+				continue;
+			}
+
+			if ( !groups.hasOwnProperty( `${toRemove}` ) ) {
+				client.createMessage( msg.channel.id, `Group ${toRemove} does not exist!` );
+				continue;
+			}
+
+			++i;
+
+			let content_count = groups[`${toRemove}`].length;
+			if ( content_count > 0 ) {
+				// make sure the roles are moved back to the default group
+				groups[`${defaultGroup}`] = groups[`${defaultGroup}`].concat( groups[`${toRemove}`] );
+				client.createMessage(
+					msg.channel.id,
+					`Deleted group ${toRemove} and moved ${content_count} roles to default group "${defaultGroup}"!`
+				);
+				moved += content_count;
+			} else {
+				client.createMessage( msg.channel.id, `Deleted group ${toRemove}!` );
+			}
+			delete groups[`${toRemove}`];
+
+		}
+
+		let moved_message = moved > 0 ? ` Moved ${moved} back to default group "${defaultGroup}"` : '';
+
+		if ( i === 0 ) {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Removed no groups.**` );
+		} else if ( i === total ) {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Removed ${i} groups.**.` + moved_message );
+		} else {
+			client.createMessage(
+				msg.channel.id,
+				`${msg.author.mention}: **Removed ${i} of ${total} groups.**` + moved_message
+			);
+		}
+		saveGroupsToFile();
+	}
+
+	groupsCommand.registerSubcommand(
+		'remove',
+		command_groups_remove,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Removes one or multiple groups.',
+			fullDescription: 'Removes one or multiple groups.',
+			usage: '<groupname ...>'
+		}
+	);
+
+	function command_groups_list () {
+		let message = '**Current groups:**\n';
+		for ( const group in groups ) {
+			message += `- ${group}`;
+			if ( group === defaultGroup ) {
+				message += ' **(default group)**';
+			}
+			message += '\n';
+		}
+		return message;
+	}
+
+	groupsCommand.registerSubcommand(
+		'list',
+		command_groups_list,
+
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Lists all opt-in roles.',
+			fullDescription: 'Lists all opt-in roles.'
+		}
+	);
+
+	function command_groups_yeet ( msg, args ) {
+		let total = args.length;
+		if ( total !== 3 || args[1] !== 'to' ) {
+			return 'Usage: `groups yeet [from] to [to]`';
+		}
+
+		let from = args[0];
+		if ( !groups.hasOwnProperty( from ) ) {
+			return `Group "${from}" does not exist!`;
+		}
+
+		let to = args[2];
+		if ( !groups.hasOwnProperty( to ) ) {
+			return `Group "${to}" does not exist!`;
+		}
+
+		if ( from === to ) {
+			return 'The groups are the same!';
+		}
+
+		let count = groups[from].length;
+
+		if ( count === 0 ) {
+			return `Group "${from}" has no roles to move!`;
+		}
+
+		groups[to] = groups[to].append( groups[from] );
+		groups[from] = [];
+
+		return `Moved ${count} roles from group "${from}" to group "${to}"!`;
+	}
+
+	groupsCommand.registerSubcommand(
+		'yeet',
+		command_groups_yeet,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Moves all roles from one group to another.',
+			fullDescription: 'Moves all roles from one group to another.',
+			usage: '<groupname> to <groupname>'
+		}
+	);
+
+	function command_groups_yoink ( msg, args ) {
+		let argCount = args.length;
+		if ( argCount < 3 || args[argCount - 2] !== 'to' ) {
+			return 'Usage: `groups yoink [roles...] to [group]`';
+		}
+
+		let to = args[argCount - 1];
+		if ( !groups.hasOwnProperty( to ) ) {
+			return `Group "${to}" does not exist!`;
+		}
+
+		let toMove = args.slice( 0, args.length - 2 );
+		let total = toMove.length;
+
+		if ( total === 0 ) {
+			return 'No roles to move!';
+		}
+
+		let i = 0;
+		for ( const role of toMove ) {
+			if ( groups[to].includes( role ) ) {
+				client.createMessage( msg.channel.id, `Role "${role}" is already in group "${to}"!` );
+				continue;
+			}
+
+			for ( const group in groups ) {
+				if ( group === to ) {
+					continue;
+				}
+				let list = groups[group];
+
+				let index = list.indexOf( role );
+				if ( index !== -1 ) {
+					list.splice( index, 1 );
+					groups[to] = groups[to].append( [ role ] );
+
+					client.createMessage( msg.channel.id, `Moved "${role}" to "${to}"!` );
+
+					++i;
+					break;
+				}
+
+				client.createMessage( msg.channel.id, `Role "${role}" does not exist in the system!` );
+			}
+		}
+
+		if ( i === 0 ) {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Moved no groups.**` );
+		} else if ( i === argCount ) {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Moved ${i} groups.**.` );
+		} else {
+			client.createMessage( msg.channel.id, `${msg.author.mention}: **Moved ${i} of ${total} groups.**` );
+		}
+		saveGroupsToFile();
+	}
+
+	groupsCommand.registerSubcommand(
+		'yoink',
+		command_groups_yoink,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'TODO',
+			fullDescription: 'TODO',
+			usage: '<groupname> to <groupname>'
+		}
+	);
 
 	function command_selfrole ( msg, args ) {
 		args = args.join( ' ' );
@@ -33,27 +342,22 @@ module.exports = ( client ) => {
 			return;
 		}
 
-		let query = msg.channel.guild.roles.filter( r => ( roles.region.includes( r.id )
-		                                                   || roles.optin.includes( r.id ) )
-		                                                 && ( r.id === args
-		                                                      || r.name.toLowerCase()
-		                                                      === args.toLowerCase() ) );
+		let query = msg.channel.guild.roles.filter(
+			r => ( roles.region.includes( r.id ) || roles.optin.includes( r.id ) )
+			     && ( r.id === args || r.name.toLowerCase() === args.toLowerCase() )
+		);
 
 		if ( query.length > 1 ) {
-
 			let checkCaseQuery = query.filter( r => r.name === args );
 
 			if ( checkCaseQuery.length === 1 ) {
 				query = checkCaseQuery[0];
 			} else {
-
 				return stripIndents`
         There are multiple opt-in roles with this name! Use the ID instead to self assign them.
         
         ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
-
 			}
-
 		} else if ( query.length === 1 ) {
 			query = query[0];
 		} else {

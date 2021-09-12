@@ -27,6 +27,27 @@ module.exports = ( client ) => {
 			}
 		}
 	);
+
+	function command_kill ( msg ) {
+		client.createMessage( msg.channel.id, `Killed the bot. Well done, ${msg.author.mention}.` );
+		process.exit( 0 );
+	}
+
+	// eval command
+	client.registerCommand(
+		'kill',
+		command_kill,
+
+		// command options
+		{
+			description: 'This kills the bot.',
+			fullDescription: 'This kills the bot.',
+			usage: '',
+			requirements: {
+				userIDs: [ client.config.ownerID ]
+			}
+		}
+	);
 };
 
 function cleanText ( text ) {
