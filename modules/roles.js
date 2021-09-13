@@ -213,10 +213,14 @@ module.exports = ( client ) => {
 		}
 	);
 
-	function command_groups_yeet ( msg, args ) {
+	function log_to_author ( msg, message ) {
+		client.createMessage( msg.channel.id, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
+	}
+
+	function command_groups_merge ( msg, args ) {
 		let total = args.length;
 		if ( total !== 3 || args[1] !== 'to' ) {
-			return 'Usage: `groups yeet [from] to [to]`';
+			return 'Usage: `groups merge [from] into [to]`';
 		}
 
 		let from = args[0];
@@ -246,8 +250,8 @@ module.exports = ( client ) => {
 	}
 
 	groupsCommand.registerSubcommand(
-		'yeet',
-		command_groups_yeet,
+		'merge',
+		command_groups_merge,
 
 		{
 			requirements: {
@@ -257,7 +261,7 @@ module.exports = ( client ) => {
 
 			guildOnly: true,
 			description: 'Moves all roles from one group to another.',
-			fullDescription: 'Moves all roles from one group to another.',
+			fullDescription: 'Moves all roles from one group to another. Does not delete groups.',
 			usage: '<groupname> to <groupname>'
 		}
 	);
@@ -265,56 +269,69 @@ module.exports = ( client ) => {
 	function command_groups_yoink ( msg, args ) {
 		let argCount = args.length;
 		if ( argCount < 3 || args[argCount - 2] !== 'to' ) {
-			return 'Usage: `groups yoink [roles...] to [group]`';
+			log_to_author( msg, 'Usage: `groups yoink [roles...] to [group]`' );
+			return;
 		}
 
 		let to = args[argCount - 1];
 		if ( !groups.hasOwnProperty( to ) ) {
-			return `Group "${to}" does not exist!`;
+			log_to_author( msg, `Group \`${to}\` does not exist!` );
+			return;
 		}
 
-		let toMove = args.slice( 0, args.length - 2 );
-		let total = toMove.length;
+		let toMove_list = args.slice( 0, args.length - 2 );
+		let total = toMove_list.length;
 
 		if ( total === 0 ) {
-			return 'No roles to move!';
+			log_to_author( msg, 'No roles to move!' );
+			return;
 		}
 
+		log_to_author( msg, 'Working on it...' );
+
+		let return_message = '```diff\n';
+
 		let i = 0;
-		for ( const role of toMove ) {
-			if ( groups[to].includes( role ) ) {
-				client.createMessage( msg.channel.id, `Role "${role}" is already in group "${to}"!` );
+		roleLoop: for ( const roleToMove of toMove_list ) {
+			if ( groups[to].includes( roleToMove ) ) {
+				return_message += `- Role '${roleToMove}' is already in group '${to}'!\n`;
 				continue;
 			}
 
-			for ( const group in groups ) {
-				if ( group === to ) {
+			// search through all roles for the role
+
+			for ( const currentGroup_name in groups ) {
+				if ( currentGroup_name === to ) {
 					continue;
 				}
-				let list = groups[group];
 
-				let index = list.indexOf( role );
-				if ( index !== -1 ) {
-					list.splice( index, 1 );
-					groups[to] = groups[to].append( [ role ] );
+				let currentGroup_roleList = groups[currentGroup_name];
+				let roleIndex = currentGroup_roleList.indexOf( roleToMove );
+				if ( roleIndex !== -1 ) {
+					currentGroup_roleList.splice( roleIndex, 1 );
+					groups[to].push( roleToMove );
 
-					client.createMessage( msg.channel.id, `Moved "${role}" to "${to}"!` );
+					return_message += `+ Moved '${roleToMove}' to group '${to}'!\n`;
 
 					++i;
-					break;
+					continue roleLoop;
 				}
-
-				client.createMessage( msg.channel.id, `Role "${role}" does not exist in the system!` );
 			}
+
+			return_message += `- Role '${roleToMove}' does not exist in the system!\n`;
 		}
+
+		return_message += '```\n';
 
 		if ( i === 0 ) {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Moved no groups.**` );
-		} else if ( i === argCount ) {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Moved ${i} groups.**.` );
+			return_message = `${msg.author.mention}: **Moved no roles.**\n` + return_message;
+		} else if ( i === total ) {
+			return_message = `${msg.author.mention}: **Moved ${i} roles.**.\n` + return_message;
 		} else {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Moved ${i} of ${total} groups.**` );
+			return_message = `${msg.author.mention}: **Moved ${i} of ${total} roles.**\n` + return_message;
 		}
+
+		client.createMessage( msg.channel.id, return_message );
 		saveGroupsToFile();
 	}
 
@@ -329,8 +346,8 @@ module.exports = ( client ) => {
 			},
 
 			guildOnly: true,
-			description: 'TODO',
-			fullDescription: 'TODO',
+			description: 'Yoinks one or more roles to a specified group.',
+			fullDescription: 'Yoinks one or more roles to a specified group.',
 			usage: '<groupname> to <groupname>'
 		}
 	);
