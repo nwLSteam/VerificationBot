@@ -53,12 +53,14 @@ module.exports = ( client ) => {
 	// Obtain existing object, else create the file for it
 	let GROUPS;
 	let REGIONS;
+	let GROUP_ORDER;
 
 	// Because this line of code is used way too damn much
 	function saveRolesToFile () {
 		let roles = {};
 		roles.regions = REGIONS;
 		roles.groups = GROUPS;
+		roles.order = GROUP_ORDER;
 
 		jsonfile.writeFileSync( rolesPath, roles, { spaces: 4 } );
 	}
@@ -68,12 +70,35 @@ module.exports = ( client ) => {
 			let roles = jsonfile.readFileSync( rolesPath );
 			GROUPS = roles.groups;
 			REGIONS = roles.regions;
+			GROUP_ORDER = roles.order;
+
+			for ( let i = GROUP_ORDER.length - 1; i >= 0; --i ) {
+				let group = GROUP_ORDER[i];
+
+				if ( !GROUPS.hasOwnProperty( group ) ) {
+					client.warn( `Removing missing group ${group} from order list...` );
+					GROUP_ORDER.splice( i, 1 );
+				}
+			}
+
+			for ( let i = GROUPS.length - 1; i >= 0; --i ) {
+				let group = GROUPS[i];
+
+				if ( !GROUP_ORDER.includes( group ) ) {
+					client.warn( `Adding missing group ${group} to order list...` );
+					GROUP_ORDER.push( group );
+				}
+			}
+
+			saveRolesToFile();
+
 		} catch ( e ) {
 			REGIONS = [];
 			GROUPS = {};
 			GROUPS[client.config.defaultGroup] = [];
+			GROUP_ORDER = [ client.config.defaultGroup ];
 
-			client.warn( 'Couldn\'t find roles.json, making a new one...' );
+			client.warn( 'Couldn\'t find roles.json or it is malformed, making a new one...' );
 			saveRolesToFile(); // it's basically the exact same line of code
 		}
 	}
@@ -82,6 +107,10 @@ module.exports = ( client ) => {
 
 	function getGroups () {
 		return GROUPS;
+	}
+
+	function getOrder () {
+		return GROUP_ORDER;
 	}
 
 	function getRolesByGroupName ( name ) {
@@ -108,20 +137,22 @@ module.exports = ( client ) => {
 		}
 
 		GROUPS[group] = [];
+		GROUP_ORDER.push( group );
 		saveRolesToFile();
 	}
 
-	function deleteGroup ( name ) {
-		if ( !groupExists( name ) ) {
+	function deleteGroup ( group ) {
+		if ( !groupExists( group ) ) {
 			return;
 		}
 
-		let count = getRoleCountInGroup( name );
+		let count = getRoleCountInGroup( group );
 		if ( count !== 0 ) {
-			client.warn( `Deleting non-empty group ${name} with ${count} roles!` );
+			client.warn( `Deleting non-empty group ${group} with ${count} roles!` );
 		}
 
-		delete GROUPS[name];
+		delete GROUPS[group];
+		GROUP_ORDER.splice( GROUP_ORDER.indexOf( group ), 1 );
 		saveRolesToFile();
 	}
 
@@ -270,6 +301,10 @@ module.exports = ( client ) => {
 			retval[i] = retval[i].trim();
 		}
 		return retval;
+	}
+
+	function arrayHasDuplicates ( array ) {
+		return ( new Set( array ) ).size !== array.length;
 	}
 
 	// groups role manager
@@ -444,7 +479,7 @@ module.exports = ( client ) => {
 	 */
 	function command_groups_list () {
 		let message = '**Current groups:**\n';
-		for ( const group in GROUPS ) {
+		for ( const group of GROUP_ORDER ) {
 			message += `• ${group}`;
 			if ( group === client.config.defaultGroup ) {
 				message += ' **(default group)**';
@@ -530,6 +565,118 @@ module.exports = ( client ) => {
 		}
 	);
 
+	function command_groups_reorder ( msg, args ) {
+		args = getArgumentsAsArray( args );
+
+		if ( args.length === 0 ) {
+			let groups = '';
+
+			let first = true;
+			for ( const group of GROUP_ORDER ) {
+				if ( first ) {
+					first = false;
+				} else {
+					groups += ', ';
+				}
+
+				groups += `\`${group}\``;
+
+			}
+
+			message( msg,
+			         `Use \`${msg.prefix}groups reorder <comma-separated list>\` to reorder the groups.\n`
+			         + 'The current group order is:\n\n'
+			         + groups
+			);
+			return;
+		}
+
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let failure = false;
+			let return_message = '```diff\n';
+
+			if ( arrayHasDuplicates( args ) ) {
+				failure = true;
+				return_message += `- List contains duplicates!\n`;
+			}
+
+			for ( const groupName of args ) {
+				if ( !GROUP_ORDER.includes( groupName ) ) {
+					failure = true;
+					return_message += `- Your list includes this unknown group: ${groupName}\n`;
+				}
+			}
+
+			for ( const groupName of GROUP_ORDER ) {
+				if ( !args.includes( groupName ) ) {
+					failure = true;
+					return_message += `- Your list is missing: ${groupName}\n`;
+				}
+			}
+
+			return_message += '```\n';
+
+			wait_message.delete();
+
+			if ( failure ) {
+				message_pingAuthor( msg, `**Failed to reorder groups:**\n` + return_message );
+				return;
+			}
+
+			message_pingAuthor( msg, `Reordered groups!` );
+
+			GROUP_ORDER = args;
+			saveRolesToFile();
+		} );
+	}
+
+	groupsCommand.registerSubcommand(
+		'reorder',
+		command_groups_reorder,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Reorders the groups.',
+			fullDescription: 'Reorders the groups. Use the command with no arguments to get the current list.',
+			usage: '[comma-separated group list]'
+		}
+	);
+
+	function command_groups_fix ( msg ) {
+		client.warn( 'Group fix was triggered.' );
+		async_message( msg, 'Regenerating group list...' ).then( wait_message => {
+			saveRolesToFile();
+			loadRolesFromFile();
+			client.warn( 'Group order: ' + GROUP_ORDER );
+			client.warn( 'Groups: ' + JSON.stringify( GROUPS ) );
+			client.warn( 'Regions: ' + REGIONS );
+			wait_message.delete();
+			message_pingAuthor( msg, 'Groups should be fixed now.' );
+		} );
+	}
+
+	groupsCommand.registerSubcommand(
+		'fix',
+		command_groups_fix,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Fixes missing groups.',
+			fullDescription: 'Fixes missing groups. If the probblem persists, please contact @nwL#2120.',
+			usage: ''
+		}
+	);
+
 	function command_selfrole ( msg, args ) {
 		args = getArgumentsAsArray( args );
 
@@ -604,7 +751,7 @@ module.exports = ( client ) => {
 	function command_selfrole_list ( msg, args ) {
 		let message = 'These are the roles you may currently assign yourself.\n\n';
 
-		for ( const group in GROUPS ) {
+		for ( const group of GROUP_ORDER ) {
 			if ( isGroupEmpty( group ) ) {
 				continue;
 			}
@@ -883,7 +1030,7 @@ module.exports = ( client ) => {
 	function command_optin_list ( msg, args ) {
 		let message = '**Current opt-in roles:**\n';
 
-		for ( const group in GROUPS ) {
+		for ( const group of GROUP_ORDER ) {
 			if ( isGroupEmpty( group ) ) {
 				continue;
 			}
