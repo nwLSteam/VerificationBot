@@ -4,31 +4,272 @@ const path = require( 'path' );
 const stripIndent = commonTags.stripIndent;
 const stripIndents = commonTags.stripIndents;
 const rolesPath = path.dirname( __dirname ) + '/lists/roles.json';
-const groupsPath = path.dirname( __dirname ) + '/lists/groups.json';
+
+// used for smart documentation despite being unused
+const Eris = require( 'eris' );
+const { Message } = require( 'eris' );
 
 module.exports = ( client ) => {
 
-	function log_to_author ( msg, message ) {
+	if ( !client.config.defaultGroup ) {
+		client.error( 'Default group is empty!' );
+		process.exit( 1 );
+	}
+
+	function message ( msg, message ) {
+		client.createMessage( msg.channel.id, message );
+	}
+
+	/**
+	 * Creates a message in the form of:
+	 *
+	 > user#1234: lorem ipsum dolor sit amet
+	 *
+	 * The listed user is not a mention, and is extracted from the msg object.
+	 *
+	 * @param {Eris.Message} msg The message object from Eris.
+	 * @param {string} message A string containing the message to be displayed.
+	 */
+	function message_withAuthor ( msg, message ) {
 		client.createMessage( msg.channel.id, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
 	}
 
-	let groups;
-	function saveGroupsToFile () {
-		jsonfile.writeFileSync( groupsPath, groups, { spaces: 4 } );
+	function message_pingAuthor ( msg, message ) {
+		client.createMessage( msg.channel.id, `${msg.author.mention}: ${message}` );
 	}
 
-	try {
-		groups = jsonfile.readFileSync( groupsPath );
-		if ( !groups.hasOwnProperty( `${defaultGroup}` ) ) {
-			groups[`${defaultGroup}`] = [];
-			saveGroupsToFile();
-		}
-	} catch ( e ) {
-		groups = {};
-		groups[`${defaultGroup}`] = [];
+	async function async_message ( msg, message ) {
+		return await client.createMessage( msg.channel.id, message );
+	}
 
-		client.warn( 'Couldn\'t find groups.json, making a new one...' );
-		saveGroupsToFile();
+	async function async_message_withAuthor ( msg, message ) {
+		return await client.createMessage( msg.channel.id, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
+	}
+
+	async function async_message_pingAuthor ( msg, message ) {
+		return await client.createMessage( msg.channel.id, `${msg.author.mention}: ${message}` );
+	}
+
+	// Obtain existing object, else create the file for it
+	let GROUPS;
+	let REGIONS;
+
+	// Because this line of code is used way too damn much
+	function saveRolesToFile () {
+		let roles = {};
+		roles.regions = REGIONS;
+		roles.groups = GROUPS;
+
+		jsonfile.writeFileSync( rolesPath, roles, { spaces: 4 } );
+	}
+
+	function loadRolesFromFile () {
+		try {
+			let roles = jsonfile.readFileSync( rolesPath );
+			GROUPS = roles.groups;
+			REGIONS = roles.regions;
+		} catch ( e ) {
+			REGIONS = [];
+			GROUPS = {};
+			GROUPS[client.config.defaultGroup] = [];
+
+			client.warn( 'Couldn\'t find roles.json, making a new one...' );
+			saveRolesToFile(); // it's basically the exact same line of code
+		}
+	}
+
+	loadRolesFromFile();
+
+	function getGroups () {
+		return GROUPS;
+	}
+
+	function getRolesByGroupName ( name ) {
+		if ( GROUPS.hasOwnProperty( name ) ) {
+			return GROUPS[name];
+		}
+
+		return undefined;
+	}
+
+	function getGroupByRoleID ( id ) {
+		for ( const groupsKey in GROUPS ) {
+			if ( GROUPS[groupsKey].includes( id ) ) {
+				return groupsKey;
+			}
+		}
+
+		return undefined;
+	}
+
+	function addGroup ( group ) {
+		if ( GROUPS.hasOwnProperty( group ) ) {
+			return;
+		}
+
+		GROUPS[group] = [];
+		saveRolesToFile();
+	}
+
+	function deleteGroup ( name ) {
+		if ( !groupExists( name ) ) {
+			return;
+		}
+
+		let count = getRoleCountInGroup( name );
+		if ( count !== 0 ) {
+			client.warn( `Deleting non-empty group ${name} with ${count} roles!` );
+		}
+
+		delete GROUPS[name];
+		saveRolesToFile();
+	}
+
+	/**
+	 * Concat a group onto another one. Adds the roles from 'source' onto 'target' without changing the source.
+	 * @param target_name Name of the target group. Will get changed.
+	 * @param source_name Name of the source group. Will not get changed.
+	 */
+	function concatGroups ( target_name, source_name ) {
+		GROUPS[target_name] = GROUPS[target_name].concat( GROUPS[source_name] );
+	}
+
+	function addRoleToGroup ( group, id ) {
+		GROUPS[group].push( id );
+	}
+
+	function addRolesToGroup ( group, roles_array ) {
+		GROUPS[group] = GROUPS[group].concat( roles_array );
+	}
+
+	function addRoleToRegions ( id ) {
+		REGIONS.push( id );
+	}
+
+	function removeGroupedRole ( id ) {
+		let group = getGroupByRoleID( id );
+
+		if ( group === undefined ) {
+			return;
+		}
+
+		GROUPS[group].splice( GROUPS[group].indexOf( id ), 1 );
+	}
+
+	function removeRegionRole ( id ) {
+		if ( isRegionRole( id ) ) {
+			REGIONS.splice( REGIONS.indexOf( id ), 1 );
+		}
+	}
+
+	function groupExists ( group ) {
+		return GROUPS.hasOwnProperty( group );
+	}
+
+	function getRoleCountInGroup ( name ) {
+		return getRolesByGroupName( name ).length;
+	}
+
+	function isGroupEmpty ( name ) {
+		return getRoleCountInGroup( name ) === 0;
+	}
+
+	function getRoleName ( msg, id ) {
+		let query = msg.channel.guild.roles.filter( r => ( r.id === id ) );
+
+		if ( query.length === 0 ) {
+			return undefined;
+		}
+
+		return query[0].name;
+	}
+
+	function getMatchingGuildRoles ( msg, rolename ) {
+		let query = msg.channel.guild.roles.filter(
+			r => (
+				r.id === rolename                                  // either role matches an ID
+				|| r.name.toLowerCase() === rolename.toLowerCase() // or role matches a name
+			)
+		);
+
+		if ( query.length > 1 ) {
+			let checkCaseQuery = query.filter( r => r.name === rolename );
+
+			if ( checkCaseQuery.length === 1 ) {
+				return checkCaseQuery;
+			} else {
+				return query;
+			}
+		} else if ( query.length === 1 ) {
+			return query;
+		} else {
+			return [];
+		}
+	}
+
+	function getMatchingAndAddedGuildRoles ( msg, role ) {
+		let roles = [];
+		for ( const group in GROUPS ) {
+			roles = roles.concat( GROUPS[group] );
+		}
+
+		let query = msg.channel.guild.roles.filter(
+			r => (
+				     isRegionRole( r.id )
+				     || isRegularRole( r.id )
+			     ) && (
+				     r.id === role                                  // either role matches an ID
+				     || r.name.toLowerCase() === role.toLowerCase() // or role matches a name
+			     )
+		);
+
+		if ( query.length > 1 ) {
+			let checkCaseQuery = query.filter( r => r.name === role );
+
+			if ( checkCaseQuery.length === 1 ) {
+				return checkCaseQuery;
+			} else {
+				return query;
+			}
+		} else if ( query.length === 1 ) {
+			return query;
+		} else {
+			return [];
+		}
+	}
+
+	function isRegularRole ( id ) {
+		for ( const group in GROUPS ) {
+			if ( GROUPS[group].includes( id ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function isRegionRole ( id ) {
+		return REGIONS.includes( id );
+	}
+
+	function assignRoleToCurrentUser ( msg, id, message = '' ) {
+		msg.member.addRole( id, message ).then( r => {} );
+	}
+
+	function unassignRoleFromCurrentUser ( msg, id, message = '' ) {
+		msg.member.removeRole( id, message ).then( r => {} );
+	}
+
+	function getArgumentsAsArray ( args, delimiter = ',' ) {
+		if ( args.length === 0 ) {
+			return [];
+		}
+		let string = args.join( ' ' );
+		let retval = string.split( delimiter );
+		for ( let i = 0; i < retval.length; i++ ) {
+			retval[i] = retval[i].trim();
+		}
+		return retval;
 	}
 
 	// groups role manager
@@ -36,13 +277,13 @@ module.exports = ( client ) => {
 		'groups',
 		// content
 		stripIndent`
-  Valid subcommands:
-    **list** - lists current groups
-    **add** - adds a new group
-    **remove** - removes a group
-    **yeet** - moves all roles from one group to another
-    **yoink** - moves some roles to a group
-    `,
+            Valid subcommands:
+            **list** - lists current groups
+            **add** - adds a new group
+            **remove** - removes a group
+            **yeet** - moves all roles from one group to another
+            **yoink** - moves some roles to a group
+            `,
 
 		// command options
 		{
@@ -58,28 +299,45 @@ module.exports = ( client ) => {
 		}
 	);
 
+	/**
+	 * Adds one or more empty groups to the groups object.
+	 *
+	 * @param {Eris.Message} msg The Eris message object.
+	 * @param {Array[string]} args An array of strings, sent by Eris, containing the group names.
+	 */
 	function command_groups_add ( msg, args ) {
+		args = getArgumentsAsArray( args );
 		let total = args.length;
 		let i = 0;
-		for ( const toAdd of args ) {
-			if ( groups.hasOwnProperty( `${toAdd}` ) ) {
-				client.createMessage( msg.channel.id, `Group ${toAdd} already exists!` );
-				continue;
+
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
+
+			for ( const toAdd of args ) {
+				if ( groupExists( toAdd ) ) {
+					return_message += `- Group '${toAdd}' already exists!\n`;
+					continue;
+				}
+
+				++i;
+				addGroup( toAdd );
+				return_message += `+ Added group '${toAdd}'!\n`;
 			}
 
-			++i;
-			groups[`${toAdd}`] = [];
-			client.createMessage( msg.channel.id, `Added group ${toAdd}!` );
-		}
+			return_message += '```\n';
 
-		if ( i === 0 ) {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Added no groups.**` );
-		} else if ( i === total ) {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Added ${i} groups.**.` );
-		} else {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Added ${i} of ${total} groups.**` );
-		}
-		saveGroupsToFile();
+			wait_message.delete();
+
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Added no groups.**` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Added ${i} groups.**` + return_message );
+			} else {
+				message_pingAuthor( msg, `**Added ${i} of ${total} groups.**` + return_message );
+			}
+
+			saveRolesToFile();
+		} );
 	}
 
 	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
@@ -97,57 +355,71 @@ module.exports = ( client ) => {
 			guildOnly: true,
 			description: 'Adds one or multiple groups.',
 			fullDescription: 'Adds one or multiple groups.',
-			usage: '<groupname ...>'
+			usage: '<group[, ...]>'
 		}
 	);
 
+	/**
+	 * Rmoves one or more groups from the groups object.
+	 *
+	 * @param {Eris.Message} msg The Eris message object.
+	 * @param {Array[string]} args An array of strings, sent by Eris, containing the group names.
+	 */
 	function command_groups_remove ( msg, args ) {
+		args = getArgumentsAsArray( args );
 		let total = args.length;
 		let i = 0;
 		let moved = 0;
-		for ( const toRemove of args ) {
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
 
-			if ( toRemove === defaultGroup ) {
-				client.createMessage( msg.channel.id, `Cannot remove default group "${defaultGroup}"!` );
-				continue;
+			for ( const toRemove of args ) {
+
+				if ( toRemove === client.config.defaultGroup ) {
+					return_message += `- Cannot remove default group '${client.config.defaultGroup}'!\n`;
+					continue;
+				}
+
+				if ( !groupExists( toRemove ) ) {
+					return_message += `- Group '${toRemove}' does not exist!\n`;
+					continue;
+				}
+
+				++i;
+
+				let roleCount = getRoleCountInGroup( toRemove );
+				if ( roleCount > 0 ) {
+					// make sure the roles are moved back to the default group
+					concatGroups( client.config.defaultGroup, toRemove );
+					moved += roleCount;
+
+					deleteGroup( toRemove );
+					return_message += `+ Deleted group '${toRemove}' (moved ${roleCount} roles `
+					                  + `to default group '${client.config.defaultGroup}')!\n`;
+				} else {
+					deleteGroup( toRemove );
+					return_message += `+ Deleted group '${toRemove}'!\n`;
+				}
+
 			}
 
-			if ( !groups.hasOwnProperty( `${toRemove}` ) ) {
-				client.createMessage( msg.channel.id, `Group ${toRemove} does not exist!` );
-				continue;
-			}
+			return_message += '```\n';
 
-			++i;
+			let moved_message = moved > 0
+			                    ? ` Moved ${moved} roles back to default group '${client.config.defaultGroup}'`
+			                    : '';
 
-			let content_count = groups[`${toRemove}`].length;
-			if ( content_count > 0 ) {
-				// make sure the roles are moved back to the default group
-				groups[`${defaultGroup}`] = groups[`${defaultGroup}`].concat( groups[`${toRemove}`] );
-				client.createMessage(
-					msg.channel.id,
-					`Deleted group ${toRemove} and moved ${content_count} roles to default group "${defaultGroup}"!`
-				);
-				moved += content_count;
+			wait_message.delete();
+
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Removed no groups.**` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Removed ${i} groups.**` + moved_message + return_message );
 			} else {
-				client.createMessage( msg.channel.id, `Deleted group ${toRemove}!` );
+				message_pingAuthor( msg, `**Removed ${i} of ${total} groups.**` + moved_message + return_message );
 			}
-			delete groups[`${toRemove}`];
-
-		}
-
-		let moved_message = moved > 0 ? ` Moved ${moved} back to default group "${defaultGroup}"` : '';
-
-		if ( i === 0 ) {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Removed no groups.**` );
-		} else if ( i === total ) {
-			client.createMessage( msg.channel.id, `${msg.author.mention}: **Removed ${i} groups.**.` + moved_message );
-		} else {
-			client.createMessage(
-				msg.channel.id,
-				`${msg.author.mention}: **Removed ${i} of ${total} groups.**` + moved_message
-			);
-		}
-		saveGroupsToFile();
+			saveRolesToFile();
+		} );
 	}
 
 	groupsCommand.registerSubcommand(
@@ -163,16 +435,22 @@ module.exports = ( client ) => {
 			guildOnly: true,
 			description: 'Removes one or multiple groups.',
 			fullDescription: 'Removes one or multiple groups.',
-			usage: '<groupname ...>'
+			usage: '<group[, ...]>'
 		}
 	);
 
+	/**
+	 * Lists all groups, indicating the default group and marking empty groups.
+	 */
 	function command_groups_list () {
 		let message = '**Current groups:**\n';
-		for ( const group in groups ) {
-			message += `- ${group}`;
-			if ( group === defaultGroup ) {
+		for ( const group in GROUPS ) {
+			message += `• ${group}`;
+			if ( group === client.config.defaultGroup ) {
 				message += ' **(default group)**';
+			}
+			if ( getRoleCountInGroup( group ) === 0 ) {
+				message += ' *(empty)*';
 			}
 			message += '\n';
 		}
@@ -196,36 +474,43 @@ module.exports = ( client ) => {
 		}
 	);
 
+	/**
+	 * Merges one group into the other. Deletes the first group.
+	 *
+	 * @param {Eris.Message} msg The Eris message object.
+	 * @param {Array[string]} args A string array of arguments.
+	 * @returns {string} The message for Eris to display.
+	 */
 	function command_groups_merge ( msg, args ) {
 		let total = args.length;
-		if ( total !== 3 || args[1] !== 'to' ) {
-			return 'Usage: `groups merge [from] into [to]`';
+		if ( total !== 3 || args[1] !== 'into' ) {
+			return `Usage: \`${msg.prefix}groups merge <from> into <to>\``;
 		}
 
 		let from = args[0];
-		if ( !groups.hasOwnProperty( from ) ) {
-			return `Group "${from}" does not exist!`;
+		if ( !groupExists( from ) ) {
+			return `Group \`${from}\` does not exist!`;
 		}
 
 		let to = args[2];
-		if ( !groups.hasOwnProperty( to ) ) {
-			return `Group "${to}" does not exist!`;
+		if ( !groupExists( to ) ) {
+			return `Group \`${to}\` does not exist!`;
 		}
 
 		if ( from === to ) {
 			return 'The groups are the same!';
 		}
 
-		let count = groups[from].length;
+		let count = getRoleCountInGroup( from );
 
 		if ( count === 0 ) {
-			return `Group "${from}" has no roles to move!`;
+			return `Group \`${from}\` has no roles to move!`;
 		}
 
-		groups[to] = groups[to].append( groups[from] );
-		groups[from] = [];
+		concatGroups( to, from );
+		deleteGroup( from );
 
-		return `Moved ${count} roles from group "${from}" to group "${to}"!`;
+		return `Merged ${count} roles from group \`${from}\` into group \`${to}\` and deleted group \`${from}\`!`;
 	}
 
 	groupsCommand.registerSubcommand(
@@ -239,170 +524,66 @@ module.exports = ( client ) => {
 			},
 
 			guildOnly: true,
-			description: 'Moves all roles from one group to another.',
-			fullDescription: 'Moves all roles from one group to another. Does not delete groups.',
-			usage: '<groupname> to <groupname>'
+			description: 'Merges one group into another.',
+			fullDescription: 'Merges one group into another. Deletes the first group.',
+			usage: '<group> into <group>'
 		}
 	);
 
-	function command_groups_yoink ( msg, args ) {
-		let argCount = args.length;
-		if ( argCount < 3 || args[argCount - 2] !== 'to' ) {
-			log_to_author( msg, 'Usage: `groups yoink [roles...] to [group]`' );
+	function command_selfrole ( msg, args ) {
+		args = getArgumentsAsArray( args );
+
+		if ( args.length === 0 ) {
+			message_pingAuthor( msg, `Please specify a role. You can use \`${msg.prefix}selfrole list\` to view them.` );
 			return;
 		}
 
-		let to = args[argCount - 1];
-		if ( !groups.hasOwnProperty( to ) ) {
-			log_to_author( msg, `Group \`${to}\` does not exist!` );
-			return;
-		}
+		let return_message = '';
 
-		let toMove_list = args.slice( 0, args.length - 2 );
-		let total = toMove_list.length;
-
-		if ( total === 0 ) {
-			log_to_author( msg, 'No roles to move!' );
-			return;
-		}
-
-		log_to_author( msg, 'Working on it...' );
-
-		let return_message = '```diff\n';
-
-		let i = 0;
-		roleLoop: for ( const roleToMove of toMove_list ) {
-			if ( groups[to].includes( roleToMove ) ) {
-				return_message += `- Role '${roleToMove}' is already in group '${to}'!\n`;
+		for ( const rolename of args ) {
+			if ( rolename === '' ) {
 				continue;
 			}
 
-			// search through all roles for the role
+			let roleList = getMatchingAndAddedGuildRoles( msg, rolename );
 
-			for ( const currentGroup_name in groups ) {
-				if ( currentGroup_name === to ) {
-					continue;
-				}
+			client.log( roleList );
 
-				let currentGroup_roleList = groups[currentGroup_name];
-				let roleIndex = currentGroup_roleList.indexOf( roleToMove );
-				if ( roleIndex !== -1 ) {
-					currentGroup_roleList.splice( roleIndex, 1 );
-					groups[to].push( roleToMove );
-
-					return_message += `+ Moved '${roleToMove}' to group '${to}'!\n`;
-
-					++i;
-					continue roleLoop;
-				}
+			if ( roleList.length === 0 ) {
+				return_message += `${msg.member.mention}, there is no ${rolename} role!\n`;
+				continue;
 			}
 
-			return_message += `- Role '${roleToMove}' does not exist in the system!\n`;
-		}
-
-		return_message += '```\n';
-
-		if ( i === 0 ) {
-			return_message = `${msg.author.mention}: **Moved no roles.**\n` + return_message;
-		} else if ( i === total ) {
-			return_message = `${msg.author.mention}: **Moved ${i} roles.**.\n` + return_message;
-		} else {
-			return_message = `${msg.author.mention}: **Moved ${i} of ${total} roles.**\n` + return_message;
-		}
-
-		client.createMessage( msg.channel.id, return_message );
-		saveGroupsToFile();
-	}
-
-	groupsCommand.registerSubcommand(
-		'yoink',
-		command_groups_yoink,
-
-		{
-			requirements: {
-				userIDs: [ client.config.ownerID ],
-				roleIDs: [ client.config.modsRoleID ]
-			},
-
-			guildOnly: true,
-			description: 'Yoinks one or more roles to a specified group.',
-			fullDescription: 'Yoinks one or more roles to a specified group.',
-			usage: '<groupname> to <groupname>'
-		}
-	);
-
-	// Because this line of code is used way too damn much
-	function saveRolesToFile () {
-		jsonfile.writeFileSync( rolesPath, roles, { spaces: 4 } );
-	}
-
-	// Obtain existing object, else create the file for it
-	let roles;
-	try {
-		roles = jsonfile.readFileSync( rolesPath );
-	} catch ( e ) {
-		roles = {
-			region: [],
-			optin: []
-		};
-
-		client.warn( 'Couldn\'t find roles.json, making a new one...' );
-		saveRolesToFile(); // it's basically the exact same line of code
-	}
-
-	function command_selfrole ( msg, args ) {
-		args = args.join( ' ' );
-
-		if ( args.length === 0 ) {
-			return;
-		}
-
-		let query = msg.channel.guild.roles.filter(
-			r => ( roles.region.includes( r.id ) || roles.optin.includes( r.id ) )
-			     && ( r.id === args || r.name.toLowerCase() === args.toLowerCase() )
-		);
-
-		if ( query.length > 1 ) {
-			let checkCaseQuery = query.filter( r => r.name === args );
-
-			if ( checkCaseQuery.length === 1 ) {
-				query = checkCaseQuery[0];
-			} else {
-				return stripIndents`
-        There are multiple opt-in roles with this name! Use the ID instead to self assign them.
-        
-        ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
+			if ( roleList.length > 1 ) {
+				// todo better message
+				return_message += stripIndents`${msg.member.mention},  
+                    There are multiple opt-in roles with this name! Use the ID instead to self assign them.
+                    
+                    ${roleList.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}\n`;
+				continue;
 			}
-		} else if ( query.length === 1 ) {
-			query = query[0];
-		} else {
-			return;
+
+			let role = roleList[0];
+
+			if ( isRegionRole( role.id ) ) {
+				// get region roles the user already has
+				let existing = msg.member.roles.filter( r => REGIONS.includes( r ) );
+
+				existing.forEach( ( roleid ) => {
+					if ( roleid !== role.id ) {
+						unassignRoleFromCurrentUser( msg, roleid, 'Removing existing region role to add new one.' );
+					}
+				} );
+
+				assignRoleToCurrentUser( msg, role.id, 'Adding region role to user.' );
+				return_message += `${msg.member.mention}, you are now a ${role.name}!\n`;
+			} else if ( isRegularRole( role.id ) ) {
+				assignRoleToCurrentUser( msg, role.id, 'Adding optin role to user.' );
+				return_message += `${msg.member.mention}, you are now a ${role.name}!\n`;
+			}
 		}
 
-		if ( roles.region.includes( query.id ) ) {
-
-			let existing = msg.member.roles.filter( r => roles.region.includes( r ) );
-
-			existing.forEach( ( roleid ) => {
-
-				if ( roleid
-				     !== query.id ) {
-					msg.member.removeRole( roleid, 'Removing existing region role to add new one.' );
-				}
-
-			} );
-
-			msg.member.addRole( query.id, 'Adding region role to user.' );
-
-			return `${msg.author.mention}, you are now a ${query.name}!`;
-
-		} else if ( roles.optin.includes( query.id ) ) {
-
-			msg.member.addRole( query.id, 'Adding optin role to user.' );
-
-			return `${msg.author.mention}, gave you the ${query.name} tag!`;
-
-		}
+		message( msg, return_message );
 	}
 
 	// Selfrole command, allows the user to give a role to their user.
@@ -415,22 +596,37 @@ module.exports = ( client ) => {
 			aliases: [ 'iam' ],
 			guildOnly: true,
 			description: 'Give or remove roles from yourself.',
-			fullDescription: 'Give yourself one of the defined roles on the server. List roles with subcommand list. Remove roles with subcommand remove or not. You may only have one region role, but an unlimited amount of other roles.',
-			usage: '<role name>'
+			fullDescription: 'Give yourself one or multiple of the defined roles on the server. If multiple, separate them with commas. List roles with subcommand list. Remove roles with subcommand remove or not. You may only have one region role, but an unlimited amount of other roles.',
+			usage: '<role[, ...]>'
 		}
 	);
 
 	function command_selfrole_list ( msg, args ) {
-		return stripIndents`
-    These are the roles you may currently assign yourself.
-    
-    **Region Roles**
-    ${roles.region.length ? roles.region.map( roleid => msg.channel.guild.roles.get( roleid ).name ).join( ', ' )
-		                  : 'There are no region roles!'}
-    
-    **Opt-in Roles**
-    ${roles.optin.length ? roles.optin.map( roleid => msg.channel.guild.roles.get( roleid ).name ).join( ', ' )
-		                 : 'There are no opt-in roles!'}`;
+		let message = 'These are the roles you may currently assign yourself.\n\n';
+
+		for ( const group in GROUPS ) {
+			if ( isGroupEmpty( group ) ) {
+				continue;
+			}
+
+			message += `**${group}**\n`;
+			let roles = [];
+			for ( const id of GROUPS[group] ) {
+				roles.push( getRoleName( msg, id ) );
+			}
+			roles = roles.join( ', ' );
+			message += `${roles}\n\n`;
+		}
+
+		message += `**Regions** (only one of these can be active at the same time!)\n`;
+		let roles = [];
+		for ( const id of REGIONS ) {
+			roles.push( getRoleName( msg, id ) );
+		}
+		roles = roles.join( ', ' );
+		message += `${roles}\n\n`;
+
+		return message;
 	}
 
 	// List subcommand, lists all possible roles to be self-assigned
@@ -447,41 +643,41 @@ module.exports = ( client ) => {
 	);
 
 	function command_selfrole_remove ( msg, args ) {
-		args = args.join( ' ' );
-		let query = msg.channel.guild.roles.filter( r => ( roles.region.includes( r.id )
-		                                                   || roles.optin.includes( r.id ) )
-		                                                 && ( r.id === args
-		                                                      || r.name.toLowerCase()
-		                                                      === args.toLowerCase() ) );
+		args = getArgumentsAsArray( args );
 
-		if ( query.length > 1 ) {
+		let return_message = '';
 
-			let checkCaseQuery = query.filter( r => r.name === args );
-
-			if ( checkCaseQuery.length === 1 ) {
-				query = checkCaseQuery[0];
-			} else {
-
-				return stripIndents`
-        There are multiple opt-in roles with this name! Use the ID instead to remove them.
-        
-        ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
-
+		for ( const rolename of args ) {
+			if ( rolename.length === 0 ) {
+				return;
 			}
 
-		} else if ( query.length === 1 ) {
-			query = query[0];
-		} else {
-			return;
+			let roleList = getMatchingAndAddedGuildRoles( msg, rolename );
+
+			// no roles found
+			if ( roleList.length === 0 ) {
+				return_message += `${msg.member.mention}, there is no ${rolename} role!\n`;
+				continue;
+			}
+
+			if ( roleList.length > 1 ) {
+				// todo better message
+				return_message += stripIndents`${msg.member.mention},  
+                    There are multiple opt-in roles with this name! Use the ID instead to self assign them.
+                    
+                    ${roleList.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}\n`;
+				continue;
+			}
+
+			let role = roleList[0];
+
+			if ( isRegionRole( role.id ) || isRegularRole( role.id ) ) {
+				unassignRoleFromCurrentUser( msg, role.id, 'Removing opt-in role from user.' );
+				return_message += `${msg.member.mention}, removed the ${role.name} tag from you!\n`;
+			}
 		}
 
-		if ( roles.region.includes( query.id ) || roles.optin.includes( query.id ) ) {
-
-			msg.member.removeRole( query.id, 'Removing opt-in role from user.' );
-
-			return `${msg.author.mention}, removed the ${query.name} tag from you!`;
-
-		}
+		message( msg, return_message );
 	}
 
 	// Remove subcommand, allows the user to remove their own self-assignable tags.
@@ -495,7 +691,7 @@ module.exports = ( client ) => {
 			guildOnly: true,
 			description: 'Allows the user to remove their own opt-in roles.',
 			fullDescription: 'Allows the user to remove their own opt-in roles.',
-			usage: '<role name>'
+			usage: '<role[, ...]>'
 		}
 	);
 
@@ -503,15 +699,16 @@ module.exports = ( client ) => {
 	// These commands allow the mods to define which roles are opt ins or not.
 
 	// Optin role manager
-	let optin = client.registerCommand(
+	let optinCommand = client.registerCommand(
 		'optin',
 		// content
 		stripIndent`
-  Valid subcommands:
-  
-    **add** - adds a new opt-in role
-    **remove** - removes an opt-in role
-    **list** - lists current opt-in roles`,
+            Valid subcommands:
+
+            **add** - adds a new opt-in role
+            **remove** - removes an opt-in role
+            **move** - moves roles between groups
+            **list** - lists current opt-in roles`,
 
 		// command options
 		{
@@ -528,54 +725,76 @@ module.exports = ( client ) => {
 	);
 
 	function command_optin_add ( msg, args ) {
-		args = args.join( ' ' );
-		let query = msg.channel.guild.roles.filter( r => r.id === args || r.name.toLowerCase()
-		                                                 === args.toLowerCase() );
+		args = getArgumentsAsArray( args );
 
-		if ( query.length > 1 ) {
+		let total = args.length;
+		let i = 0;
 
-			let checkCaseQuery = query.filter( r => r.name === args );
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
+			for ( const roleName of args ) {
+				let roleList = getMatchingGuildRoles( msg, roleName );
 
-			if ( checkCaseQuery.length === 1 ) {
-				query = checkCaseQuery[0];
+				if ( roleList.length > 1 ) {
+					return_message += `- Ambiguous input for '${roleName}'.\n`;
+					return_message += `--- Matching roles are:\n`;
+
+					for ( const roleListElement of roleList ) {
+						return_message += `--- ${roleListElement.name} (ID ${roleListElement.id})\n`;
+					}
+
+					continue;
+				}
+
+				if ( roleList.length === 0 ) {
+					msg.channel.guild.createRole( { name: roleName }, 'Creating new opt-in role.' ).then( ( role ) => {
+						// todo: add to group here
+						addRoleToGroup( client.config.defaultGroup, role.id );
+						saveRolesToFile();
+					} );
+
+					return_message += `+ Created a new opt-in role '${roleName}'!\n`;
+					++i;
+					continue;
+				}
+
+				let role = roleList[0];
+
+				if ( isRegularRole( role.id ) ) {
+					return_message += `- '${role.name}' is already an opt-in role!\n`;
+					continue;
+				}
+
+				let regionNotice = '';
+				if ( isRegionRole( role.id ) ) {
+					removeRegionRole( role.id );
+					regionNotice = ' (moved over from region roles)';
+				}
+
+				// todo: add to specific group here
+				addRoleToGroup( client.config.defaultGroup, role.id );
+
+				return_message += `+ Added '${role.name}' to the list of opt-in roles!` + regionNotice + '\n';
+				++i;
+			}
+			return_message += '```\n';
+
+			wait_message.delete();
+
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Added no opt-in roles.**\n` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Added ${i} opt-in roles.**\n` + return_message );
 			} else {
-
-				return stripIndents`
-        You have multiple roles with the same name! Use the ID instead to add this to the list.
-      
-        ${query.map( r => `**${r.name}** -- ${r.id}` ).join( '\n' )}`;
-
+				message_pingAuthor( msg, `**Added ${i} of ${total} opt-in roles.**\n` + return_message );
 			}
 
-		} else if ( query.length === 1 ) {
-			query = query[0];
-		} else {
-
-			msg.channel.guild.createRole( { name: args }, 'Creating new opt-in role.' ).then( ( role ) => {
-
-				roles.optin.push( role.id );
-				saveRolesToFile();
-
-			} );
-
-			return `Created a new opt-in role ${args}!`;
-
-		}
-
-		if ( roles.optin.includes( query.id )
-		     || roles.region.includes( query.id ) ) {
-			return `${query.name} is already an opt-in role!`;
-		}
-
-		roles.optin.push( query.id );
-		saveRolesToFile();
-
-		return `Added ${query.name} to the list of opt-in roles!`;
-
+			saveRolesToFile();
+		} );
 	}
 
 	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
-	optin.registerSubcommand(
+	optinCommand.registerSubcommand(
 		'add',
 		command_optin_add,
 
@@ -587,48 +806,64 @@ module.exports = ( client ) => {
 			},
 
 			guildOnly: true,
-			description: 'Adds an opt-in role.',
-			fullDescription: 'Adds an opt-in role. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
-			usage: '<role name or id>'
+			description: 'Adds one mor more opt-in roles.',
+			fullDescription: 'Adds one or more opt-in roles. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
+			usage: '<role[, ...]>'
 		}
 	);
 
 	function command_optin_remove ( msg, args ) {
-		args = args.join( ' ' );
-		let query = msg.channel.guild.roles.filter( r => roles.optin.includes( r.id )
-		                                                 && ( r.id === args
-		                                                      || r.name.toLowerCase()
-		                                                      === args.toLowerCase() ) );
+		args = getArgumentsAsArray( args );
 
-		if ( query.length > 1 ) {
+		let total = args.length;
+		let i = 0;
 
-			let checkCaseQuery = query.filter( r => r.name === args );
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
 
-			if ( checkCaseQuery.length === 1 ) {
-				checkCaseQuery = checkCaseQuery[0];
-			} else {
+			for ( const roleName of args ) {
+				let roleList = getMatchingGuildRoles( msg, roleName );
 
-				return stripIndents`
-        You have multiple roles with the same name! Use the ID instead to add this to the list.
-      
-        ${query.map( r => `${r.name} -- ${r.id}` ).join( '\n' )}`;
+				if ( roleList.length > 1 ) {
+					return_message += `- Ambiguous input for '${roleName}'.\n`;
+					return_message += `--- Matching roles are:\n`;
 
+					for ( const roleListElement of roleList ) {
+						return_message += `--- ${roleListElement.name} (ID ${roleListElement.id})\n`;
+					}
+
+					continue;
+				}
+
+				if ( roleList.length === 0 || !isRegularRole( roleList[0].id ) ) {
+					return_message += `- '${roleName}' isn't an opt-in role!\n`;
+					continue;
+				}
+
+				let role = roleList[0];
+
+				removeGroupedRole( role.id );
+
+				return_message += `+ Removed '${role.name}' as an opt-in role.\n`;
 			}
 
-		} else if ( query.length === 1 ) {
-			query = query[0];
-		} else {
-			return `${args} isn't an opt-in role!`;
-		}
+			return_message += '```\n';
 
-		roles.optin.splice( roles.optin.indexOf( query.id ), 1 );
-		saveRolesToFile();
+			wait_message.delete();
 
-		return `Removed ${query.name} as an opt-in role.`;
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Removed no opt-in roles.**\n` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Removed ${i} opt-in roles.**\n` + return_message );
+			} else {
+				message_pingAuthor( msg, `**Removed ${i} of ${total} opt-in roles.**\n` + return_message );
+			}
 
+			saveRolesToFile();
+		} );
 	}
 
-	optin.registerSubcommand(
+	optinCommand.registerSubcommand(
 		'remove',
 		command_optin_remove,
 
@@ -639,21 +874,33 @@ module.exports = ( client ) => {
 			},
 
 			guildOnly: true,
-			description: 'Removes an opt-in role.',
-			fullDescription: 'Removes an opt-in role.',
-			usage: '<role name or id>'
+			description: 'Removes one or more opt-in roles.',
+			fullDescription: 'Removes one or more opt-in roles.',
+			usage: '<role[, ...]>'
 		}
 	);
 
 	function command_optin_list ( msg, args ) {
-		return roles.optin.length ? stripIndents`
-    These are the current opt-in roles.
-    
-    ${roles.optin.map( roleid => `**${msg.channel.guild.roles.get( roleid ).name}** - ${roleid}` ).join( '\n' )}`
-		                          : 'There are no opt-in roles!';
+		let message = '**Current opt-in roles:**\n';
+
+		for ( const group in GROUPS ) {
+			if ( isGroupEmpty( group ) ) {
+				continue;
+			}
+
+			message += `**${group}**\n`;
+			let roles = [];
+			for ( const id of GROUPS[group] ) {
+				roles.push( getRoleName( msg, id ) );
+			}
+			roles = roles.join( ', ' );
+			message += `${roles}\n\n`;
+		}
+
+		return message;
 	}
 
-	optin.registerSubcommand(
+	optinCommand.registerSubcommand(
 		'list',
 		command_optin_list,
 
@@ -670,18 +917,320 @@ module.exports = ( client ) => {
 		}
 	);
 
-	function roles_event_guildRoleDelete ( guild, role ) {
-		if ( roles.optin.includes( role.id ) ) {
-			roles.optin.splice( roles.optin.indexOf( role.id ), 1 );
+	function command_optin_move ( msg, args ) {
+		let argCount = args.length;
+		if ( argCount < 3 || args[argCount - 2] !== 'to' ) {
+			message_withAuthor( msg, `Usage: \`${msg.prefix}optin move <role[, ...]> to [group]\`` );
+			return;
+		}
+
+		let to = args[argCount - 1];
+		if ( !GROUPS.hasOwnProperty( to ) ) {
+			message_withAuthor( msg, `Group \`${to}\` does not exist!` );
+			return;
+		}
+
+		let toMove_list = getArgumentsAsArray( args.slice( 0, args.length - 2 ) );
+		let total = toMove_list.length;
+
+		if ( total === 0 ) {
+			message_withAuthor( msg, 'No roles to move!' );
+			return;
+		}
+
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
+
+			let i = 0;
+			for ( const roleInput of toMove_list ) {
+				let roleList = getMatchingAndAddedGuildRoles( msg, roleInput );
+
+				if ( roleList.length > 1 ) {
+					return_message += `- Ambiguous input for '${roleInput}'.\n`;
+					return_message += `--- Matching roles are:\n`;
+
+					for ( const roleListElement of roleList ) {
+						return_message += `--- ${roleListElement.name} (ID ${roleListElement.id})\n`;
+					}
+
+					continue;
+				}
+
+				if ( roleList.length === 0 ) {
+					return_message += `- Role '${roleInput}' does not exist in the system!\n`;
+					continue;
+				}
+
+				let roleToMove = roleList[0];
+
+				let group = getGroupByRoleID( roleToMove.id );
+
+				if ( group === to ) {
+					return_message += `- Role '${roleInput}' is already in group '${to}'!\n`;
+					continue;
+				}
+
+				removeGroupedRole( roleToMove.id );
+				addRoleToGroup( to, roleToMove.id );
+
+				return_message += `+ Moved '${roleInput}' to group '${to}'!\n`;
+				++i;
+			}
+
+			return_message += '```\n';
+
+			wait_message.delete();
+
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Moved no roles.**\n` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Moved ${i} roles.**\n` + return_message );
+			} else {
+				message_pingAuthor( msg, `**Moved ${i} of ${total} roles.**\n` + return_message );
+			}
+
+			saveRolesToFile();
+		} );
+	}
+
+	optinCommand.registerSubcommand(
+		'move',
+		command_optin_move,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Moves one or more roles to a specified group.',
+			fullDescription: 'Moves one or more roles to a specified group.',
+			usage: '<role[, ...]> to <groupname>'
+		}
+	);
+
+	// Region role manager
+	let region = client.registerCommand(
+		'region',
+
+		//function body
+		stripIndent`
+            Valid subcommands:
+            
+            **add** - adds a new region role
+            **remove** - removes a region role
+            **list** - lists current region roles`,
+
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Allows for the management of region roles. Subcommands add and remove.',
+			fullDescription: 'Allows for the management of region roles.',
+			usage: '<subcommand>'
+		}
+	);
+
+	function command_region_add ( msg, args ) {
+		args = getArgumentsAsArray( args );
+
+		let total = args.length;
+		let i = 0;
+
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
+			for ( const roleName of args ) {
+				let roleList = getMatchingGuildRoles( msg, roleName );
+
+				if ( roleList.length > 1 ) {
+					return_message += `- Ambiguous input for '${roleName}'.\n`;
+					return_message += `--- Matching roles are:\n`;
+
+					for ( const roleListElement of roleList ) {
+						return_message += `--- ${roleListElement.name} (ID ${roleListElement.id})\n`;
+					}
+
+					continue;
+				}
+
+				if ( roleList.length === 0 ) {
+					msg.channel.guild.createRole( { name: roleName }, 'Creating new region role.' ).then( ( role ) => {
+						// todo: add to group here
+						addRoleToRegions( role.id );
+						saveRolesToFile();
+					} );
+
+					return_message += `+ Created a new region role '${roleName}'!\n`;
+					++i;
+					continue;
+				}
+
+				let role = roleList[0];
+
+				if ( isRegionRole( role.id ) ) {
+					return_message += `- '${role.name}' is already a region role!\n`;
+					continue;
+				}
+
+				let regionNotice = '';
+				if ( isRegularRole( role.id ) ) {
+					removeGroupedRole( role.id );
+					regionNotice = ' (moved over from opt-in roles)';
+				}
+
+				addRoleToRegions( role.id );
+				saveRolesToFile();
+
+				return_message += `+ Added '${role.name}' to the list of region roles!` + regionNotice + '\n';
+			}
+			return_message += '```\n';
+
+			wait_message.delete();
+
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Added no region roles.**\n` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Added ${i} region  roles.**\n` + return_message );
+			} else {
+				message_pingAuthor( msg, `**Added ${i} of ${total} region roles.**\n` + return_message );
+			}
+
+			saveRolesToFile();
+		} );
+	}
+
+	// Add subcommand, adds a new opt-in role. If it doesn't already exist, a new role is created.
+	region.registerSubcommand(
+		'add',
+		command_region_add,
+
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Adds one or more region roles.',
+			fullDescription: 'Adds one or more region roles. Can be used with existing roles or will create a new role. Will return IDs if multiple roles are found.',
+			usage: '<role[, ...]>'
+		}
+	);
+
+	function command_region_remove ( msg, args ) {
+		args = getArgumentsAsArray( args );
+
+		let total = args.length;
+		let i = 0;
+
+		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let return_message = '```diff\n';
+
+			for ( const roleName of args ) {
+				let roleList = getMatchingGuildRoles( msg, roleName );
+
+				if ( roleList.length > 1 ) {
+					return_message += `- Ambiguous input for '${roleName}'.\n`;
+					return_message += `--- Matching roles are:\n`;
+
+					for ( const roleListElement of roleList ) {
+						return_message += `--- ${roleListElement.name} (ID ${roleListElement.id})\n`;
+					}
+
+					continue;
+				}
+
+				if ( roleList.length === 0 || !isRegionRole( roleList[0].id ) ) {
+					return_message += `- '${roleName}' isn't a region role!\n`;
+					continue;
+				}
+
+				let role = roleList[0];
+
+				removeRegionRole( role.id );
+
+				return_message += `+ Removed '${role.name}' as a region role.\n`;
+			}
+			return_message += '```\n';
+
+			wait_message.delete();
+
+			if ( i === 0 ) {
+				message_pingAuthor( msg, `**Removed no region roles.**\n` + return_message );
+			} else if ( i === total ) {
+				message_pingAuthor( msg, `**Removed ${i} region roles.**\n` + return_message );
+			} else {
+				message_pingAuthor( msg, `**Removed ${i} of ${total} region roles.**\n` + return_message );
+			}
+
+			saveRolesToFile();
+		} );
+	}
+
+	region.registerSubcommand(
+		'remove',
+		command_region_remove,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Removes one or more region roles.',
+			fullDescription: 'Removes one or more region roles.',
+			usage: '<role[, ...]>'
+		}
+	);
+
+	function command_region_list ( msg ) {
+		let message = `**Current region roles**\n`;
+		let roles = [];
+		for ( const id of REGIONS ) {
+			roles.push( getRoleName( msg, id ) );
+		}
+		roles = roles.join( ', ' );
+		message += `${roles}\n\n`;
+
+		return message;
+	}
+
+	region.registerSubcommand(
+		'list',
+		command_region_list,
+
+		// command options
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Lists all region roles.',
+			fullDescription: 'Lists all region roles.'
+		}
+	);
+
+	function events_guildRoleDelete_roles ( guild, role ) {
+		if ( isRegionRole( role.id ) ) {
+			removeRegionRole( role.id );
 			saveRolesToFile();
 		}
 
-		if ( roles.region.includes( role.id ) ) {
-			roles.region.splice( roles.region.indexOf( role.id ), 1 );
+		if ( isRegularRole( role.id ) ) {
+			removeGroupedRole( role.id );
 			saveRolesToFile();
 		}
 	}
 
 	// catch the deletion of optin roles
-	client.on( 'guildRoleDelete', roles_event_guildRoleDelete );
+	client.on( 'guildRoleDelete', events_guildRoleDelete_roles );
 };

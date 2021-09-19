@@ -23,7 +23,10 @@ const client = new Eris.CommandClient(
 
 	// Command options
 	{
-		description: 'A bot made by Visate#7752 (ID: 97198953430257664)\n\nPM @Visate#7752 if you have any suggestions for the bot!',
+		description: 'A modular Discord bot for roles and verification.\n\n'
+		             + 'Created by `Visate#7752` (ID: `97198953430257664`).\n'
+		             + 'Current version adapted and maintained by `nwL#2120` (ID `133154727998390272`).\n'
+		             + 'PM `nwL#2120` for questions and suggestions.',
 		owner: '',
 		prefix: config.prefixes,
 
