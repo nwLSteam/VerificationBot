@@ -43,7 +43,7 @@ This can be whatever channel you like, i.e. the actual introductions channel or 
 This is the primary speaking channel.
 
 **Permissions**
-* @everyone **cannot** Read and Send Messages
+* `@everyone` **cannot** Read and Send Messages
 * Member **can** Read and Send Messages
 
 Config Options
