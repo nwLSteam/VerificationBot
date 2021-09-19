@@ -1,6 +1,7 @@
 {
   "discordToken": "",
   "prefixes": ["@mention "],
+  "defaultGroup": "",
 
   "ownerID": "",
   "guildID": "",
