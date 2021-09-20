@@ -694,8 +694,6 @@ module.exports = ( client ) => {
 
 			let roleList = getMatchingAndAddedGuildRoles( msg, rolename );
 
-			client.log( roleList );
-
 			if ( roleList.length === 0 ) {
 				return_message += `${msg.member.mention}, there is no ${rolename} role!\n`;
 				continue;
@@ -989,6 +987,7 @@ module.exports = ( client ) => {
 
 				let role = roleList[0];
 
+				++i;
 				removeGroupedRole( role.id );
 
 				return_message += `+ Removed '${role.name}' as an opt-in role.\n`;
@@ -1300,6 +1299,7 @@ module.exports = ( client ) => {
 
 				let role = roleList[0];
 
+				++i;
 				removeRegionRole( role.id );
 
 				return_message += `+ Removed '${role.name}' as a region role.\n`;
