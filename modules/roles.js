@@ -16,8 +16,59 @@ module.exports = ( client ) => {
 		process.exit( 1 );
 	}
 
-	function message ( msg, message ) {
-		client.createMessage( msg.channel.id, message );
+	function sliceIntoMessagePieces ( message, size = 1900 ) {
+		let messageChunks = [].concat.apply(
+			[],
+			message.split( '' ).map( function ( x, i ) {
+				return i % size ? [] : message.slice( i, i + size );
+			}, message )
+		);
+		let messageArray = [];
+		let closedWithCode = false;
+
+		for ( let messageChunkKey in messageChunks ) {
+			let messageChunk = messageChunks[messageChunkKey];
+			let count = ( messageChunk.match( /```/g ) || [] ).length;
+
+			if ( closedWithCode && ( count % 2 ) === 0 ) {
+				// close and open with code
+				messageChunk = '```diff\n' + messageChunk;
+				messageChunk = messageChunk + '\n```';
+				closedWithCode = true;
+			} else if ( !closedWithCode && ( count % 2 ) === 1 ) {
+				// close with code
+				messageChunk = messageChunk + '\n```';
+				closedWithCode = true;
+			} else if ( closedWithCode && ( count % 2 ) === 1 ) {
+				// open with code
+				messageChunk = '```diff\n' + messageChunk;
+				closedWithCode = true;
+			} else {
+				// non-code message
+				closedWithCode = false;
+			}
+
+			messageChunks[messageChunkKey] = messageChunk;
+		}
+
+		return messageChunks;
+	}
+
+	function sendMessage ( msg, message ) {
+		if ( message.length < 1900 ) {
+			return client.createMessage( msg.channel.id, message );
+		}
+
+		let messageChunks = sliceIntoMessagePieces( message );
+		let messageArray = [];
+
+		for ( const messageChunk of messageChunks ) {
+			messageArray.push(
+				client.createMessage( msg.channel.id, messageChunk )
+			);
+		}
+
+		return messageArray;
 	}
 
 	/**
@@ -30,24 +81,45 @@ module.exports = ( client ) => {
 	 * @param {Eris.Message} msg The message object from Eris.
 	 * @param {string} message A string containing the message to be displayed.
 	 */
-	function message_withAuthor ( msg, message ) {
-		client.createMessage( msg.channel.id, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
+	function sendMessage_withAuthor ( msg, message ) {
+		sendMessage( msg, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
 	}
 
-	function message_pingAuthor ( msg, message ) {
-		client.createMessage( msg.channel.id, `${msg.author.mention}: ${message}` );
+	function sendMessage_pingAuthor ( msg, message ) {
+		sendMessage( msg, `${msg.author.mention}: ${message}` );
 	}
 
-	async function async_message ( msg, message ) {
-		return await client.createMessage( msg.channel.id, message );
+	async function async_sendMessage ( msg, message ) {
+		if ( message.length < 1900 ) {
+			return await client.createMessage( msg.channel.id, message );
+		}
+
+		let messageChunks = sliceIntoMessagePieces( message );
+		let messageArray = [];
+
+		for ( let messageChunk of messageChunks ) {
+			messageArray.push(
+				await client.createMessage( msg.channel.id, messageChunk )
+			);
+		}
+
+		return messageArray;
 	}
 
-	async function async_message_withAuthor ( msg, message ) {
-		return await client.createMessage( msg.channel.id, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
+	async function async_sendMessage_withAuthor ( msg, message ) {
+		return await async_sendMessage( msg, `${msg.author.username}#${msg.author.discriminator}: ${message}` );
 	}
 
-	async function async_message_pingAuthor ( msg, message ) {
-		return await client.createMessage( msg.channel.id, `${msg.author.mention}: ${message}` );
+	async function async_sendMessage_pingAuthor ( msg, message ) {
+		return await async_sendMessage( msg, `${msg.author.mention}: ${message}` );
+	}
+
+	function logCommand ( msg, args ) {
+		client.log( `${msg.author.username}#${msg.author.discriminator} issued command: ${msg.prefix}${msg.command.fullLabel} ${args.join( ' ' )}` );
+	}
+
+	function logInfo ( msg, message ) {
+		client.log( `[${msg.author.username}#${msg.author.discriminator} | ${msg.command.label}] ${message}` );
 	}
 
 	// Obtain existing object, else create the file for it
@@ -63,6 +135,7 @@ module.exports = ( client ) => {
 		roles.order = GROUP_ORDER;
 
 		jsonfile.writeFileSync( rolesPath, roles, { spaces: 4 } );
+		client.log( 'Saved roles to file.' );
 	}
 
 	function loadRolesFromFile () {
@@ -91,6 +164,7 @@ module.exports = ( client ) => {
 			}
 
 			saveRolesToFile();
+			client.log( 'Loaded roles from file.' );
 
 		} catch ( e ) {
 			REGIONS = [];
@@ -138,7 +212,6 @@ module.exports = ( client ) => {
 
 		GROUPS[group] = [];
 		GROUP_ORDER.push( group );
-		saveRolesToFile();
 	}
 
 	function deleteGroup ( group ) {
@@ -153,7 +226,6 @@ module.exports = ( client ) => {
 
 		delete GROUPS[group];
 		GROUP_ORDER.splice( GROUP_ORDER.indexOf( group ), 1 );
-		saveRolesToFile();
 	}
 
 	/**
@@ -341,11 +413,12 @@ module.exports = ( client ) => {
 	 * @param {Array[string]} args An array of strings, sent by Eris, containing the group names.
 	 */
 	function command_groups_add ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 		let total = args.length;
 		let i = 0;
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
 			for ( const toAdd of args ) {
@@ -364,11 +437,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Added no groups.**` + return_message );
+				sendMessage_pingAuthor( msg, `**Added no groups.**` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Added ${i} groups.**` + return_message );
+				sendMessage_pingAuthor( msg, `**Added ${i} groups.**` + return_message );
 			} else {
-				message_pingAuthor( msg, `**Added ${i} of ${total} groups.**` + return_message );
+				sendMessage_pingAuthor( msg, `**Added ${i} of ${total} groups.**` + return_message );
 			}
 
 			saveRolesToFile();
@@ -401,11 +474,12 @@ module.exports = ( client ) => {
 	 * @param {Array[string]} args An array of strings, sent by Eris, containing the group names.
 	 */
 	function command_groups_remove ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 		let total = args.length;
 		let i = 0;
 		let moved = 0;
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
 			for ( const toRemove of args ) {
@@ -447,11 +521,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Removed no groups.**` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed no groups.**` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Removed ${i} groups.**` + moved_message + return_message );
+				sendMessage_pingAuthor( msg, `**Removed ${i} groups.**` + moved_message + return_message );
 			} else {
-				message_pingAuthor( msg, `**Removed ${i} of ${total} groups.**` + moved_message + return_message );
+				sendMessage_pingAuthor( msg, `**Removed ${i} of ${total} groups.**` + moved_message + return_message );
 			}
 			saveRolesToFile();
 		} );
@@ -477,7 +551,8 @@ module.exports = ( client ) => {
 	/**
 	 * Lists all groups, indicating the default group and marking empty groups.
 	 */
-	function command_groups_list () {
+	function command_groups_list ( msg, args ) {
+		logCommand( msg, args );
 		let message = '**Current groups:**\n';
 		for ( const group of GROUP_ORDER ) {
 			message += `• ${group}`;
@@ -517,6 +592,7 @@ module.exports = ( client ) => {
 	 * @returns {string} The message for Eris to display.
 	 */
 	function command_groups_merge ( msg, args ) {
+		logCommand( msg, args );
 		let total = args.length;
 		if ( total !== 3 || args[1] !== 'into' ) {
 			return `Usage: \`${msg.prefix}groups merge <from> into <to>\``;
@@ -545,6 +621,8 @@ module.exports = ( client ) => {
 		concatGroups( to, from );
 		deleteGroup( from );
 
+		saveRolesToFile();
+
 		return `Merged ${count} roles from group \`${from}\` into group \`${to}\` and deleted group \`${from}\`!`;
 	}
 
@@ -566,6 +644,7 @@ module.exports = ( client ) => {
 	);
 
 	function command_groups_reorder ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		if ( args.length === 0 ) {
@@ -583,15 +662,17 @@ module.exports = ( client ) => {
 
 			}
 
-			message( msg,
-			         `Use \`${msg.prefix}groups reorder <comma-separated list>\` to reorder the groups.\n`
-			         + 'The current group order is:\n\n'
-			         + groups
+			sendMessage( msg,
+			             `Use \`${msg.prefix}groups reorder <comma-separated list>\` to reorder the groups.\n`
+			             + 'The current group order is:\n\n'
+			             + groups
 			);
+
+			saveRolesToFile();
 			return;
 		}
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let failure = false;
 			let return_message = '```diff\n';
 
@@ -619,11 +700,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( failure ) {
-				message_pingAuthor( msg, `**Failed to reorder groups:**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Failed to reorder groups:**\n` + return_message );
 				return;
 			}
 
-			message_pingAuthor( msg, `Reordered groups!` );
+			sendMessage_pingAuthor( msg, `Reordered groups!` );
 
 			GROUP_ORDER = args;
 			saveRolesToFile();
@@ -647,16 +728,17 @@ module.exports = ( client ) => {
 		}
 	);
 
-	function command_groups_fix ( msg ) {
+	function command_groups_fix ( msg, args ) {
+		logCommand( msg, args );
 		client.warn( 'Group fix was triggered.' );
-		async_message( msg, 'Regenerating group list...' ).then( wait_message => {
+		async_sendMessage( msg, 'Regenerating group list...' ).then( wait_message => {
 			saveRolesToFile();
 			loadRolesFromFile();
 			client.warn( 'Group order: ' + GROUP_ORDER );
 			client.warn( 'Groups: ' + JSON.stringify( GROUPS ) );
 			client.warn( 'Regions: ' + REGIONS );
 			wait_message.delete();
-			message_pingAuthor( msg, 'Groups should be fixed now.' );
+			sendMessage_pingAuthor( msg, 'Groups should be fixed now.' );
 		} );
 	}
 
@@ -678,10 +760,11 @@ module.exports = ( client ) => {
 	);
 
 	function command_selfrole ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		if ( args.length === 0 ) {
-			message_pingAuthor( msg, `Please specify a role. You can use \`${msg.prefix}selfrole list\` to view them.` );
+			sendMessage_pingAuthor( msg, `Please specify a role. You can use \`${msg.prefix}selfrole list\` to view them.` );
 			return;
 		}
 
@@ -728,7 +811,7 @@ module.exports = ( client ) => {
 			}
 		}
 
-		message( msg, return_message );
+		sendMessage( msg, return_message );
 	}
 
 	// Selfrole command, allows the user to give a role to their user.
@@ -747,6 +830,7 @@ module.exports = ( client ) => {
 	);
 
 	function command_selfrole_list ( msg, args ) {
+		logCommand( msg, args );
 		let message = 'These are the roles you may currently assign yourself.\n\n';
 
 		for ( const group of GROUP_ORDER ) {
@@ -788,6 +872,7 @@ module.exports = ( client ) => {
 	);
 
 	function command_selfrole_remove ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		let return_message = '';
@@ -822,7 +907,7 @@ module.exports = ( client ) => {
 			}
 		}
 
-		message( msg, return_message );
+		sendMessage( msg, return_message );
 	}
 
 	// Remove subcommand, allows the user to remove their own self-assignable tags.
@@ -870,12 +955,13 @@ module.exports = ( client ) => {
 	);
 
 	function command_optin_add ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		let total = args.length;
 		let i = 0;
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 			for ( const roleName of args ) {
 				let roleList = getMatchingGuildRoles( msg, roleName );
@@ -927,11 +1013,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Added no opt-in roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Added no opt-in roles.**\n` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Added ${i} opt-in roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Added ${i} opt-in roles.**\n` + return_message );
 			} else {
-				message_pingAuthor( msg, `**Added ${i} of ${total} opt-in roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Added ${i} of ${total} opt-in roles.**\n` + return_message );
 			}
 
 			saveRolesToFile();
@@ -958,12 +1044,13 @@ module.exports = ( client ) => {
 	);
 
 	function command_optin_remove ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		let total = args.length;
 		let i = 0;
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
 			for ( const roleName of args ) {
@@ -998,11 +1085,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Removed no opt-in roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed no opt-in roles.**\n` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Removed ${i} opt-in roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed ${i} opt-in roles.**\n` + return_message );
 			} else {
-				message_pingAuthor( msg, `**Removed ${i} of ${total} opt-in roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed ${i} of ${total} opt-in roles.**\n` + return_message );
 			}
 
 			saveRolesToFile();
@@ -1027,6 +1114,7 @@ module.exports = ( client ) => {
 	);
 
 	function command_optin_list ( msg, args ) {
+		logCommand( msg, args );
 		let message = '**Current opt-in roles:**\n';
 
 		for ( const group of GROUP_ORDER ) {
@@ -1064,15 +1152,16 @@ module.exports = ( client ) => {
 	);
 
 	function command_optin_move ( msg, args ) {
+		logCommand( msg, args );
 		let argCount = args.length;
 		if ( argCount < 3 || args[argCount - 2] !== 'to' ) {
-			message_withAuthor( msg, `Usage: \`${msg.prefix}optin move <role[, ...]> to [group]\`` );
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}optin move <role[, ...]> to [group]\`` );
 			return;
 		}
 
 		let to = args[argCount - 1];
 		if ( !GROUPS.hasOwnProperty( to ) ) {
-			message_withAuthor( msg, `Group \`${to}\` does not exist!` );
+			sendMessage_withAuthor( msg, `Group \`${to}\` does not exist!` );
 			return;
 		}
 
@@ -1080,11 +1169,11 @@ module.exports = ( client ) => {
 		let total = toMove_list.length;
 
 		if ( total === 0 ) {
-			message_withAuthor( msg, 'No roles to move!' );
+			sendMessage_withAuthor( msg, 'No roles to move!' );
 			return;
 		}
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
 			let i = 0;
@@ -1128,11 +1217,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Moved no roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Moved no roles.**\n` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Moved ${i} roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Moved ${i} roles.**\n` + return_message );
 			} else {
-				message_pingAuthor( msg, `**Moved ${i} of ${total} roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Moved ${i} of ${total} roles.**\n` + return_message );
 			}
 
 			saveRolesToFile();
@@ -1183,12 +1272,13 @@ module.exports = ( client ) => {
 	);
 
 	function command_region_add ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		let total = args.length;
 		let i = 0;
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 			for ( const roleName of args ) {
 				let roleList = getMatchingGuildRoles( msg, roleName );
@@ -1239,11 +1329,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Added no region roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Added no region roles.**\n` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Added ${i} region  roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Added ${i} region  roles.**\n` + return_message );
 			} else {
-				message_pingAuthor( msg, `**Added ${i} of ${total} region roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Added ${i} of ${total} region roles.**\n` + return_message );
 			}
 
 			saveRolesToFile();
@@ -1270,12 +1360,13 @@ module.exports = ( client ) => {
 	);
 
 	function command_region_remove ( msg, args ) {
+		logCommand( msg, args );
 		args = getArgumentsAsArray( args );
 
 		let total = args.length;
 		let i = 0;
 
-		async_message_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
 			for ( const roleName of args ) {
@@ -1309,11 +1400,11 @@ module.exports = ( client ) => {
 			wait_message.delete();
 
 			if ( i === 0 ) {
-				message_pingAuthor( msg, `**Removed no region roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed no region roles.**\n` + return_message );
 			} else if ( i === total ) {
-				message_pingAuthor( msg, `**Removed ${i} region roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed ${i} region roles.**\n` + return_message );
 			} else {
-				message_pingAuthor( msg, `**Removed ${i} of ${total} region roles.**\n` + return_message );
+				sendMessage_pingAuthor( msg, `**Removed ${i} of ${total} region roles.**\n` + return_message );
 			}
 
 			saveRolesToFile();
@@ -1337,7 +1428,8 @@ module.exports = ( client ) => {
 		}
 	);
 
-	function command_region_list ( msg ) {
+	function command_region_list ( msg, args ) {
+		logCommand( msg, args );
 		let message = `**Current region roles**\n`;
 		let roles = [];
 		for ( const id of REGIONS ) {
