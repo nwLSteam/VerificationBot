@@ -421,6 +421,11 @@ module.exports = ( client ) => {
 		let total = args.length;
 		let i = 0;
 
+		if ( total === 0 ) {
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}${msg.command.fullLabel} <roles...>\`` );
+			return;
+		}
+
 		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
@@ -482,6 +487,12 @@ module.exports = ( client ) => {
 		let total = args.length;
 		let i = 0;
 		let moved = 0;
+
+		if ( total === 0 ) {
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}${msg.command.fullLabel} <roles...>\`` );
+			return;
+		}
+
 		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
@@ -592,41 +603,50 @@ module.exports = ( client ) => {
 	 *
 	 * @param {Eris.Message} msg The Eris message object.
 	 * @param {Array[string]} args A string array of arguments.
-	 * @returns {string} The message for Eris to display.
 	 */
 	function command_groups_merge ( msg, args ) {
 		logCommand( msg, args );
+
 		let total = args.length;
 		if ( total !== 3 || args[1] !== 'into' ) {
-			return `Usage: \`${msg.prefix}groups merge <from> into <to>\``;
+			sendMessage_pingAuthor( msg, `Usage: \`${msg.prefix}groups merge <from> into <to>\`` );
+			return;
 		}
 
 		let from = args[0];
 		if ( !groupExists( from ) ) {
-			return `Group \`${from}\` does not exist!`;
+			sendMessage_pingAuthor( msg, `Group \`${from}\` does not exist!` );
+			return;
 		}
 
 		let to = args[2];
 		if ( !groupExists( to ) ) {
-			return `Group \`${to}\` does not exist!`;
+			sendMessage_pingAuthor( msg, `Group \`${to}\` does not exist!` );
+			return;
 		}
 
 		if ( from === to ) {
-			return 'The groups are the same!';
+			sendMessage_pingAuthor( msg, 'The groups are the same!' );
+			return;
 		}
 
 		let count = getRoleCountInGroup( from );
 
 		if ( count === 0 ) {
-			return `Group \`${from}\` has no roles to move!`;
+			sendMessage_pingAuthor( msg, `Group \`${from}\` has no roles to move!` );
+			return;
 		}
 
-		concatGroups( to, from );
-		deleteGroup( from );
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			concatGroups( to, from );
+			deleteGroup( from );
 
-		saveRolesToFile();
+			saveRolesToFile();
 
-		return `Merged ${count} roles from group \`${from}\` into group \`${to}\` and deleted group \`${from}\`!`;
+			wait_message.delete();
+
+			sendMessage_pingAuthor( msg, `Merged ${count} roles from group \`${from}\` into group \`${to}\` and deleted group \`${from}\`!` );
+		} );
 	}
 
 	groupsCommand.registerSubcommand(
@@ -859,7 +879,7 @@ module.exports = ( client ) => {
 			message += `${roles}\n\n`;
 		}
 
-		return message;
+		sendMessage( msg, message );
 	}
 
 	// List subcommand, lists all possible roles to be self-assigned
@@ -967,6 +987,11 @@ module.exports = ( client ) => {
 		let total = args.length;
 		let i = 0;
 
+		if ( total === 0 ) {
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}${msg.command.fullLabel} <roles...>\`` );
+			return;
+		}
+
 		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 			for ( const roleName of args ) {
@@ -1056,6 +1081,11 @@ module.exports = ( client ) => {
 		let total = args.length;
 		let i = 0;
 
+		if ( total === 0 ) {
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}${msg.command.fullLabel} <roles...>\`` );
+			return;
+		}
+
 		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
@@ -1137,7 +1167,7 @@ module.exports = ( client ) => {
 			message += `${roles}\n\n`;
 		}
 
-		return message;
+		sendMessage( msg, message );
 	}
 
 	optinCommand.registerSubcommand(
@@ -1410,6 +1440,11 @@ module.exports = ( client ) => {
 		let total = args.length;
 		let i = 0;
 
+		if ( total === 0 ) {
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}${msg.command.fullLabel} <roles...>\`` );
+			return;
+		}
+
 		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 			for ( const roleName of args ) {
@@ -1498,6 +1533,11 @@ module.exports = ( client ) => {
 		let total = args.length;
 		let i = 0;
 
+		if ( total === 0 ) {
+			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}${msg.command.fullLabel} <roles...>\`` );
+			return;
+		}
+
 		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
 			let return_message = '```diff\n';
 
@@ -1570,7 +1610,7 @@ module.exports = ( client ) => {
 		roles = roles.join( ', ' );
 		message += `${roles}\n\n`;
 
-		return message;
+		sendMessage( msg, message );
 	}
 
 	region.registerSubcommand(
