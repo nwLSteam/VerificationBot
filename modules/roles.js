@@ -608,18 +608,35 @@ module.exports = ( client ) => {
 		logCommand( msg, args );
 
 		let total = args.length;
-		if ( total !== 3 || args[1] !== 'into' ) {
+
+		let to;
+		let from;
+		let found = false;
+
+		for ( let i = total - 1; i >= 0; --i ) {
+			if ( args[i] === 'into' ) {
+				if ( i === 0 || i === args.length - 1 ) {
+					// either at the beginning or the end, which is invalid
+					break;
+				}
+
+				to = args.slice( i + 1 ).join( ' ' );
+				from = args.slice( 0, i ).join( ' ' );
+				found = true;
+				break;
+			}
+		}
+
+		if ( found === false ) {
 			sendMessage_pingAuthor( msg, `Usage: \`${msg.prefix}groups merge <from> into <to>\`` );
 			return;
 		}
 
-		let from = args[0];
 		if ( !groupExists( from ) ) {
 			sendMessage_pingAuthor( msg, `Group \`${from}\` does not exist!` );
 			return;
 		}
 
-		let to = args[2];
 		if ( !groupExists( to ) ) {
 			sendMessage_pingAuthor( msg, `Group \`${to}\` does not exist!` );
 			return;
@@ -1012,7 +1029,6 @@ module.exports = ( client ) => {
 					msg.channel.guild.createRole( { name: roleName }, 'Creating new opt-in role.' ).then( ( role ) => {
 						// todo: add to group here
 						addRoleToGroup( client.config.defaultGroup, role.id );
-						saveRolesToFile();
 					} );
 
 					return_message += `+ Created a new opt-in role '${roleName}'!\n`;
@@ -1190,18 +1206,36 @@ module.exports = ( client ) => {
 	function command_optin_move ( msg, args ) {
 		logCommand( msg, args );
 		let argCount = args.length;
-		if ( argCount < 3 || args[argCount - 2] !== 'to' ) {
+
+		let role_args;
+		let to;
+		let found = false;
+
+		for ( let i = argCount - 1; i >= 0; --i ) {
+			if ( args[i] === 'to' ) {
+				if ( i === 0 || i === args.length - 1 ) {
+					// either at the beginning or the end, which is invalid
+					break;
+				}
+
+				to = args.slice( i + 1 ).join( ' ' );
+				role_args = args.slice( 0, i );
+				found = true;
+				break;
+			}
+		}
+
+		if ( found === false ) {
 			sendMessage_withAuthor( msg, `Usage: \`${msg.prefix}optin move <role[, ...]> to [group]\`` );
 			return;
 		}
 
-		let to = args[argCount - 1];
 		if ( !GROUPS.hasOwnProperty( to ) ) {
 			sendMessage_withAuthor( msg, `Group \`${to}\` does not exist!` );
 			return;
 		}
 
-		let toMove_list = getArgumentsAsArray( args.slice( 0, args.length - 2 ) );
+		let toMove_list = getArgumentsAsArray( role_args );
 		let total = toMove_list.length;
 
 		if ( total === 0 ) {
