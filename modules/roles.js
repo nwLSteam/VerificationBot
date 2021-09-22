@@ -567,7 +567,7 @@ module.exports = ( client ) => {
 			}
 			message += '\n';
 		}
-		return message;
+		sendMessage( msg, message );
 	}
 
 	groupsCommand.registerSubcommand(
