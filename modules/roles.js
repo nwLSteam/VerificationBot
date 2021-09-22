@@ -267,6 +267,10 @@ module.exports = ( client ) => {
 		return GROUPS.hasOwnProperty( group );
 	}
 
+	function groupIncludes ( group, id ) {
+		return GROUPS[group].includes( id );
+	}
+
 	function getRoleCountInGroup ( name ) {
 		return getRolesByGroupName( name ).length;
 	}
@@ -386,8 +390,9 @@ module.exports = ( client ) => {
             **list** - lists current groups
             **add** - adds a new group
             **remove** - removes a group
-            **yeet** - moves all roles from one group to another
-            **yoink** - moves some roles to a group
+            **merge** - merges one group into another
+            **reorder** - reorder display order of groups
+            **fix** - use this if something's fucky wucky.
             `,
 
 		// command options
@@ -666,7 +671,6 @@ module.exports = ( client ) => {
 			             + groups
 			);
 
-			saveRolesToFile();
 			return;
 		}
 
@@ -831,7 +835,7 @@ module.exports = ( client ) => {
 		logCommand( msg, args );
 		let message = 'These are the roles you may currently assign yourself.\n\n';
 
-		if(REGIONS.length !== 0) {
+		if ( REGIONS.length !== 0 ) {
 			message += `**Region Roles** (only one possible!)\n`;
 			let roles = [];
 			for ( const id of REGIONS ) {
@@ -938,7 +942,9 @@ module.exports = ( client ) => {
             **add** - adds a new opt-in role
             **remove** - removes an opt-in role
             **move** - moves roles between groups
-            **list** - lists current opt-in roles`,
+            **list** - lists current opt-in roles
+            **move** - moves roles to a group
+            **reorder** - re-orders a list of roles in a group`,
 
 		// command options
 		{
@@ -1242,6 +1248,132 @@ module.exports = ( client ) => {
 			description: 'Moves one or more roles to a specified group.',
 			fullDescription: 'Moves one or more roles to a specified group.',
 			usage: '<role[, ...]> to <groupname>'
+		}
+	);
+
+	function command_optin_reorder ( msg, args ) {
+		if ( args.length === 0 ) {
+			let message = '';
+
+			for ( const groupKey in GROUP_ORDER ) {
+				message += `[${groupKey}] ${GROUP_ORDER[groupKey]}\n`;
+			}
+
+			sendMessage_withAuthor(
+				msg, `Usage: \`${msg.prefix}optin reorder <group id> [roles...]\`\n\n`
+				     + `**Group IDs are based on group order and should be re-checked after you re-order groups!**\n`
+				     + `Group IDs are:\n` + message );
+			return;
+		}
+
+		let id = args[0];
+		let group = GROUP_ORDER[id];
+		if ( group === undefined ) {
+			sendMessage_withAuthor( msg, `Group ID ${args[0]} does not exist!` );
+			return;
+		}
+
+		if ( args.length === 1 ) {
+			let roles = '';
+
+			let first = true;
+			for ( const role of getRolesByGroupName( group ) ) {
+				if ( first ) {
+					first = false;
+				} else {
+					roles += ', ';
+				}
+
+				roles += `\`${getRoleName( msg, role )}\``;
+
+			}
+
+			sendMessage(
+				msg,
+				`Use \`${msg.prefix}optin reorder ${id} <comma-separated list>\` to reorder the roles in \`${group}\`.\n`
+				+ 'The current group order is:\n\n' + roles
+			);
+
+			return;
+		}
+
+		// reordering here
+
+		// remove ID from args
+		args.splice( 0, 1 );
+
+		args = getArgumentsAsArray( args );
+		async_sendMessage_withAuthor( msg, 'Working on it...' ).then( wait_message => {
+			let failure = false;
+			let return_message = '```diff\n';
+
+			if ( arrayHasDuplicates( args ) ) {
+				failure = true;
+				return_message += `- List contains duplicates!\n`;
+			}
+
+			for ( const roleName of args ) {
+				let roleList = getMatchingAndAddedGuildRoles( msg, roleName );
+
+				if ( roleList.length === 0 ) {
+					failure = true;
+					return_message += `- Your list includes this unknown role: ${roleName}\n`;
+				} else if ( roleList.length > 1 ) {
+					return_message += `- Ambiguous input for '${roleName}'.\n`;
+					return_message += `--- Matching roles are:\n`;
+
+					for ( const roleListElement of roleList ) {
+						return_message += `--- ${roleListElement.name} (ID ${roleListElement.id})\n`;
+					}
+				}
+			}
+
+			for ( const roleID of GROUPS[group] ) {
+				let roleName = getRoleName( msg, roleID );
+				if ( !args.includes( roleName ) ) {
+					failure = true;
+					return_message += `- Your list is missing: ${roleName}\n`;
+				}
+			}
+
+			return_message += '```\n';
+
+			if ( failure ) {
+				wait_message.delete();
+				sendMessage_pingAuthor( msg, `**Failed to reorder group '${group}':**\n` + return_message );
+				return;
+			}
+
+			let reordered = [];
+
+			for ( const roleName of args ) {
+				let role = getMatchingAndAddedGuildRoles( msg, roleName )[0];
+				reordered.push( role.id );
+			}
+
+			GROUPS[group] = reordered;
+
+			wait_message.delete();
+			sendMessage_pingAuthor( msg, `Reordered group '${group}'!` );
+
+			saveRolesToFile();
+		} );
+	}
+
+	optinCommand.registerSubcommand(
+		'reorder',
+		command_optin_reorder,
+
+		{
+			requirements: {
+				userIDs: [ client.config.ownerID ],
+				roleIDs: [ client.config.modsRoleID ]
+			},
+
+			guildOnly: true,
+			description: 'Reorders roles in groups.',
+			fullDescription: 'Reorders roles in groups.',
+			usage: '<group id> [roles...]'
 		}
 	);
 
