@@ -154,9 +154,7 @@ module.exports = ( client ) => {
 				}
 			}
 
-			for ( let i = GROUPS.length - 1; i >= 0; --i ) {
-				let group = GROUPS[i];
-
+			for ( const group in GROUPS ) {
 				if ( !GROUP_ORDER.includes( group ) ) {
 					client.warn( `Adding missing group ${group} to order list...` );
 					GROUP_ORDER.push( group );
@@ -833,6 +831,16 @@ module.exports = ( client ) => {
 		logCommand( msg, args );
 		let message = 'These are the roles you may currently assign yourself.\n\n';
 
+		if(REGIONS.length !== 0) {
+			message += `**Region Roles** (only one possible!)\n`;
+			let roles = [];
+			for ( const id of REGIONS ) {
+				roles.push( getRoleName( msg, id ) );
+			}
+			roles = roles.join( ', ' );
+			message += `${roles}\n\n`;
+		}
+
 		for ( const group of GROUP_ORDER ) {
 			if ( isGroupEmpty( group ) ) {
 				continue;
@@ -846,14 +854,6 @@ module.exports = ( client ) => {
 			roles = roles.join( ', ' );
 			message += `${roles}\n\n`;
 		}
-
-		message += `**Regions** (only one of these can be active at the same time!)\n`;
-		let roles = [];
-		for ( const id of REGIONS ) {
-			roles.push( getRoleName( msg, id ) );
-		}
-		roles = roles.join( ', ' );
-		message += `${roles}\n\n`;
 
 		return message;
 	}
