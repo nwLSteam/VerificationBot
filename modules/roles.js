@@ -55,6 +55,10 @@ module.exports = ( client ) => {
 	}
 
 	function sendMessage ( msg, message ) {
+		if ( message.length === 0 ) {
+			return;
+		}
+
 		if ( message.length < 1900 ) {
 			return client.createMessage( msg.channel.id, message );
 		}
@@ -793,7 +797,7 @@ module.exports = ( client ) => {
 
 			guildOnly: true,
 			description: 'Fixes missing groups.',
-			fullDescription: 'Fixes missing groups. If the probblem persists, please contact @nwL#2120.',
+			fullDescription: 'Fixes missing groups. If the problem persists, please contact @nwL#2120.',
 			usage: ''
 		}
 	);
@@ -843,10 +847,10 @@ module.exports = ( client ) => {
 				} );
 
 				assignRoleToCurrentUser( msg, role.id, 'Adding region role to user.' );
-				return_message += `${msg.member.mention}, you are now a ${role.name}!\n`;
+				return_message += `${msg.member.mention}, gave you the ${role.name} tag!\n`;
 			} else if ( isRegularRole( role.id ) ) {
 				assignRoleToCurrentUser( msg, role.id, 'Adding optin role to user.' );
-				return_message += `${msg.member.mention}, you are now a ${role.name}!\n`;
+				return_message += `${msg.member.mention}, gave you the ${role.name} tag!\n`;
 			}
 		}
 
