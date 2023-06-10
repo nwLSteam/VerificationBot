@@ -191,11 +191,11 @@ module.exports = ( client ) => {
 		}
 	}
 
-	// 6 hour timer helper
+	// Timer helper
 	// Purely visual and not actually vital to any part of the program.
 	// Makes sure that the next purge is always updated before running verification purge
-	function sixHourTimer () {
-		client.nextPurge = moment().add( 6, 'hours' );
+	function timerHelper () {
+		client.nextPurge = moment().add( client.config.autoPurgeDelayInMinutes, 'minutes' );
 		verificationPurge();
 	}
 
@@ -291,9 +291,9 @@ module.exports = ( client ) => {
 
 	// On ready
 	client.on( 'ready', () => {
-		// Initialize the 6 hour timer
-		setInterval( sixHourTimer, 6 * 60 * 60 * 1000 ); // 6 hours * 60 minutes * 60 seconds * 1000 milliseconds
-		client.nextPurge = moment().add( 6, 'hours' );
+		// Initialize the timer
+		setInterval( timerHelper, client.config.autoPurgeDelayInMinutes * 60 * 1000 ); // X minutes * 60 seconds * 1000 milliseconds
+		client.nextPurge = moment().add( client.config.autoPurgeDelayInMinutes, 'minutes' );
 
 		// Run verification setup
 		verificationSetup();
@@ -312,7 +312,7 @@ module.exports = ( client ) => {
 		{
 			aliases: [ 'veripurge' ],
 			description: 'Kicks non-verified users.',
-			fullDescription: 'Kicks any users that have not followed the verification procedure. This is automatically run every 6 hours.',
+			fullDescription: 'Kicks any users that have not followed the verification procedure. This is automatically run after a set time (default 6 hours).',
 
 			requirements: {
 				userIDs: [ client.config.ownerID ],

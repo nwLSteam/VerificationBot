@@ -36,8 +36,12 @@ const client = new Eris.CommandClient(
 	}
 );
 
+const configDefault = {
+	autoPurgeDelayInMinutes: 360 // 6 hours
+}
+
 // Attach the config to the client
-client.config = config;
+client.config = Object.assign(configDefault, config);
 
 // Logging methods
 client.log = ( ...msg ) => console.log( chalk.green.bold( `[LOG] [${moment().format( 'MMM DD HH:mm:ss' )}]` ), ...msg );
